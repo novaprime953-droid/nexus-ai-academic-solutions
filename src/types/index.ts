@@ -117,3 +117,107 @@ export interface BlogPost {
   category: string;
   content: string[];
 }
+
+// ----------------------------------------------------
+// KNOWLEDGE BASE & DOCUMENT MANAGEMENT
+// ----------------------------------------------------
+export type KnowledgeCategoryType =
+  | 'Company'
+  | 'Academy'
+  | 'Services'
+  | 'AI Tools'
+  | 'FAQs'
+  | 'Policies'
+  | 'Support'
+  | 'Technical Documentation'
+  | 'Internal Knowledge';
+
+export type KnowledgeStatus = 'draft' | 'approved' | 'archived';
+export type KnowledgeVisibility = 'public' | 'internal_only';
+
+export interface KnowledgeDocument {
+  id: string;
+  title: string;
+  category: KnowledgeCategoryType;
+  content: string;
+  type: 'Markdown' | 'PDF' | 'TXT' | 'DOCX' | 'JSON';
+  size: string;
+  uploadedAt: string;
+  updatedAt: string;
+  version: number;
+  status: KnowledgeStatus;
+  visibility: KnowledgeVisibility;
+  chunksCount: number;
+  approvedBy?: string;
+  tags: string[];
+  sourceUrl?: string;
+}
+
+// ----------------------------------------------------
+// CUSTOMER SUPPORT TICKETING SYSTEM
+// ----------------------------------------------------
+export type TicketStatus =
+  | 'Open'
+  | 'Assigned'
+  | 'In Progress'
+  | 'Waiting for Customer'
+  | 'Escalated'
+  | 'Resolved'
+  | 'Closed';
+
+export type TicketCategory =
+  | 'Technical Support'
+  | 'Academy'
+  | 'Enrollment'
+  | 'AI Tools'
+  | 'Services'
+  | 'Billing'
+  | 'Account'
+  | 'Privacy'
+  | 'Complaint'
+  | 'General Inquiry';
+
+export type TicketPriority = 'P1 (Critical)' | 'P2 (High)' | 'P3 (Normal)' | 'P4 (Low)';
+
+export interface TicketReply {
+  id: string;
+  senderName: string;
+  senderEmail: string;
+  senderRole: 'customer' | 'staff' | 'ai_assistant';
+  message: string;
+  timestamp: string;
+  isInternalNote?: boolean;
+  attachments?: string[];
+}
+
+export interface SupportTicket {
+  id: string;
+  customerName: string;
+  customerEmail: string;
+  subject: string;
+  description: string;
+  category: TicketCategory;
+  priority: TicketPriority;
+  status: TicketStatus;
+  assignedStaff?: string;
+  createdAt: string;
+  updatedAt: string;
+  replies: TicketReply[];
+  attachments?: string[];
+  satisfactionRating?: number;
+  satisfactionFeedback?: string;
+  aiDraftReply?: string;
+  aiSummary?: string;
+}
+
+export interface CrawlPage {
+  path: string;
+  title: string;
+  category: string;
+  status: 'Indexed' | 'Pending' | 'Changed' | 'Excluded';
+  lastScanned: string;
+  contentHash: string;
+  chunkCount: number;
+  isExcluded?: boolean;
+}
+

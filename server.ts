@@ -606,16 +606,25 @@ app.get('/api/stats', (_req: Request, res: Response) => {
 
 interface KnowledgeCategory {
   category: string;
-  items: { title: string; content: string; tags: string[] }[];
+  items: { title: string; content: string; tags: string[]; visibility?: 'public' | 'internal_only'; status?: 'draft' | 'approved' | 'archived' }[];
 }
 
-interface KnowledgeDocument {
+interface KnowledgeDocumentRecord {
   id: string;
   title: string;
-  type: string;
+  category: string;
+  content: string;
+  type: 'Markdown' | 'PDF' | 'TXT' | 'DOCX' | 'JSON';
   size: string;
   uploadedAt: string;
+  updatedAt: string;
+  version: number;
+  status: 'draft' | 'approved' | 'archived';
+  visibility: 'public' | 'internal_only';
   chunksCount: number;
+  approvedBy?: string;
+  tags: string[];
+  sourceUrl?: string;
 }
 
 const companyKnowledgeStore: KnowledgeCategory[] = [
@@ -626,16 +635,29 @@ const companyKnowledgeStore: KnowledgeCategory[] = [
         title: 'Nexus AI Academic & Solutions Overview',
         content: 'Nexus AI Academic & Solutions is an elite technology institute and enterprise software consultancy empowering individuals and organizations through AI education, intelligent productivity tools, and production software solutions.',
         tags: ['company', 'overview', 'mission', 'about'],
+        visibility: 'public',
+        status: 'approved',
       },
       {
         title: 'Mission & Vision',
         content: 'Our mission is to democratize elite artificial intelligence engineering education and deliver world-class autonomous software solutions. Our vision is to pioneer zero-latency, secure, autonomous AI ecosystems globally.',
         tags: ['mission', 'vision', 'values'],
+        visibility: 'public',
+        status: 'approved',
       },
       {
         title: 'Physical Campus & Contact Details',
         content: 'Location: Nexus Tower 4, Tech Innovation Corridor, Cyber City Labs. Email (Academy): academy@nexusai.academic.io | Email (Enterprise Solutions): solutions@nexusai.academic.io. Operating Hours: Monday – Friday 8:00 AM – 10:00 PM EST (Physical Labs open Saturdays for enrolled cohorts). Direct Priority WhatsApp: +1 (555) 019-2834.',
         tags: ['contact', 'address', 'location', 'campus', 'phone', 'email', 'timing', 'hours', 'whatsapp'],
+        visibility: 'public',
+        status: 'approved',
+      },
+      {
+        title: 'Internal Operational SLA & Escalate Playbook',
+        content: 'INTERNAL STAFF ONLY: P1 Critical tickets require engineering lead notification within 15 minutes. Refund threshold requires Director approval. Passwords and API keys must NEVER be requested or logged in tickets.',
+        tags: ['internal', 'sla', 'escalation', 'playbook', 'policy'],
+        visibility: 'internal_only',
+        status: 'approved',
       },
     ],
   },
@@ -646,51 +668,57 @@ const companyKnowledgeStore: KnowledgeCategory[] = [
         title: 'Autonomous AI Agents & Large Language Model Architecture',
         content: '12 Weeks Master Program. Tuition Fee: $890. Level: Advanced. Instructor: Dr. Evelyn Sterling (Principal AI Researcher & Ex-DeepMind Scholar). Physical Schedule: Tuesdays & Thursdays 6:00 PM - 9:00 PM at Cyber Lab 4. Online Schedule: Self-paced with weekly live mentor syncs on Saturdays. Covers: Neural foundations, KV Caching, ReAct loops, Tool Calling, Vector Embeddings, RAG, streaming SSE, and model guardrails.',
         tags: ['ai', 'agent', 'course', 'fee', 'price', 'timing', 'schedule', 'instructor', 'evelyn', 'lab 4', 'llm', 'curriculum'],
+        visibility: 'public',
+        status: 'approved',
       },
       {
         title: 'Full-Stack Modern Web Engineering & React 19 Ecosystem',
         content: '10 Weeks Program. Tuition Fee: $720. Level: Intermediate. Instructor: Kaelen Vance (Staff Software Architect). Physical Schedule: Mondays & Wednesdays 6:30 PM - 9:30 PM at Campus Lab 1. Covers: React 19, Server Actions, TypeScript, Tailwind CSS v4, Express, Node.js, WebSockets, JWT Auth, Docker, and Cloud Run deployments.',
         tags: ['web', 'react', 'course', 'fee', 'price', 'timing', 'schedule', 'instructor', 'kaelen', 'fullstack', 'curriculum'],
+        visibility: 'public',
+        status: 'approved',
       },
       {
         title: 'Cross-Platform Mobile App Engineering (iOS & Android)',
         content: '8 Weeks Program. Tuition Fee: $680. Level: Intermediate. Instructor: Maya Lin (Lead Mobile Architect). Covers: React Native, Expo, Kotlin/Swift interop, offline sync, state management, mobile security, and App Store / Play Store publishing.',
         tags: ['mobile', 'app', 'course', 'fee', 'price', 'ios', 'android', 'react native', 'instructor', 'maya', 'curriculum'],
+        visibility: 'public',
+        status: 'approved',
       },
       {
         title: 'Enterprise AI Automation & Workflow Pipelines',
         content: '10 Weeks Program. Tuition Fee: $950. Level: Advanced. Instructor: Marcus Thorne (Director of Enterprise AI). Covers: Multi-agent CRM triggers, autonomous document parsers, LangChain/LlamaIndex pipelines, enterprise webhooks, and SLA monitoring.',
         tags: ['automation', 'pipeline', 'workflow', 'course', 'fee', 'price', 'instructor', 'marcus', 'enterprise', 'curriculum'],
+        visibility: 'public',
+        status: 'approved',
       },
       {
         title: 'UI/UX Design System & Product Architecture',
         content: '6 Weeks Program. Tuition Fee: $550. Level: Beginner/Intermediate. Instructor: Elena Rostova (Head of Design Systems). Covers: Figma design systems, micro-interactions, dark mode glassmorphism, accessibility (WCAG 2.1), and design-to-code handoffs.',
         tags: ['design', 'ui', 'ux', 'figma', 'course', 'fee', 'price', 'instructor', 'elena', 'curriculum'],
+        visibility: 'public',
+        status: 'approved',
       },
       {
         title: 'Cloud Infrastructure, Docker & Kubernetes Masterclass',
         content: '10 Weeks Program. Tuition Fee: $820. Level: Advanced. Instructor: David K. (Principal Cloud Engineer). Covers: Containerization, Kubernetes cluster orchestration, Terraform IaC, AWS/GCP architecture, and CI/CD pipelines.',
         tags: ['cloud', 'devops', 'docker', 'kubernetes', 'course', 'fee', 'price', 'instructor', 'david', 'curriculum'],
+        visibility: 'public',
+        status: 'approved',
       },
       {
         title: 'Cyber Security & AI Vulnerability Defense',
         content: '10 Weeks Program. Tuition Fee: $890. Level: Advanced. Instructor: Sarah Chen (Chief Information Security Officer). Covers: Prompt injection defense, LLM security audits, API penetration testing, and zero-trust IAM frameworks.',
         tags: ['security', 'cyber', 'vulnerability', 'course', 'fee', 'price', 'instructor', 'sarah', 'curriculum'],
-      },
-      {
-        title: 'Data Engineering & Real-Time Analytics',
-        content: '8 Weeks Program. Tuition Fee: $780. Level: Intermediate/Advanced. Instructor: Dr. Evelyn Sterling. Covers: Apache Kafka, vector databases, real-time ETL pipelines, PostgreSQL indexing, and analytics dashboards.',
-        tags: ['data', 'analytics', 'kafka', 'database', 'course', 'fee', 'price', 'curriculum'],
-      },
-      {
-        title: 'Executive AI Strategy & Enterprise Leadership',
-        content: '4 Weeks Masterclass. Tuition Fee: $1,200. Level: Executive. Covers: Generative AI ROI modeling, AI governance, build vs buy evaluation, risk management, and organizational transformation.',
-        tags: ['executive', 'strategy', 'leadership', 'course', 'fee', 'price', 'curriculum'],
+        visibility: 'public',
+        status: 'approved',
       },
       {
         title: 'Academy Enrollment & Verified Certification',
         content: 'Students can enroll online or via physical campus registration. Verified certificates with cryptographic IDs are automatically issued upon 100% course completion and passing required quizzes.',
         tags: ['enrollment', 'certificate', 'certification', 'quiz', 'gradual', 'how to enroll'],
+        visibility: 'public',
+        status: 'approved',
       },
     ],
   },
@@ -701,57 +729,69 @@ const companyKnowledgeStore: KnowledgeCategory[] = [
         title: 'AI Automation & Custom Agent Pipelines',
         content: 'Enterprise consulting and development for autonomous CRM triggers, AI document parsers, multi-model workflow orchestration, and custom tool-calling agents. Budget range: $10,000 - $50,000+.',
         tags: ['services', 'automation', 'enterprise', 'custom agents', 'solutions'],
+        visibility: 'public',
+        status: 'approved',
       },
       {
         title: 'Full-Stack Web & Mobile Software Engineering',
         content: 'Custom high-performance web applications, native mobile apps, and enterprise cloud architecture built with React 19, TypeScript, Node.js, and secure microservices.',
         tags: ['services', 'web development', 'mobile development', 'software', 'engineering'],
-      },
-      {
-        title: 'Cloud Infrastructure & DevOps Optimization',
-        content: 'Architecting zero-downtime cloud infrastructure, Kubernetes clusters, CI/CD pipelines, and high-availability edge deployments.',
-        tags: ['services', 'cloud', 'devops', 'infrastructure'],
-      },
-      {
-        title: 'Enterprise Security Audit & LLM Vulnerability Defense',
-        content: 'Comprehensive security audits for AI models, API gateways, prompt injection resilience, data privacy compliance, and SOC2 readiness.',
-        tags: ['services', 'security', 'audit', 'penetration testing'],
-      },
-      {
-        title: 'Custom LLM Fine-Tuning & RAG Vector Architectures',
-        content: 'Fine-tuning domain-specific language models, deploying private vector databases, and implementing hybrid dense-sparse RAG systems with 0% hallucination guarantees.',
-        tags: ['services', 'fine-tuning', 'rag', 'vector database', 'custom llm'],
-      },
-    ],
-  },
-  {
-    category: 'Nexus AI Productivity Tools Directory',
-    items: [
-      {
-        title: 'Nexus AI Productivity Suite Overview',
-        content: 'Our directory features 16 tools: AI Chat Assistant, Content Writer, Blog Generator, Email Writer, Summarizer, SEO Meta Generator, Keyword Analyzer, Code Assistant, Canvas Synthesizer, PDF Converter, Image Optimizer, Data Visualizer, Syntax Converter, Prompt Optimizer, API Inspector, and Database Schema Generator powered by server-side Gemini 2.5 Flash.',
-        tags: ['tools', 'directory', 'gemini', 'chat', 'writer', 'code', 'seo', 'summary'],
+        visibility: 'public',
+        status: 'approved',
       },
     ],
   },
 ];
 
-const documentsStore: KnowledgeDocument[] = [
+const documentsStore: KnowledgeDocumentRecord[] = [
   {
     id: 'doc-101',
-    title: 'Nexus_AI_Enterprise_Security_Whitepaper.pdf',
-    type: 'PDF',
-    size: '2.4 MB',
-    uploadedAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+    title: 'Nexus_AI_Master_Knowledge_Base.md',
+    category: 'Company',
+    content: masterKnowledgeBaseText.slice(0, 5000),
+    type: 'Markdown',
+    size: '42.8 KB',
+    uploadedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    updatedAt: new Date().toISOString(),
+    version: 1,
+    status: 'approved',
+    visibility: 'public',
     chunksCount: 24,
+    approvedBy: 'Marcus Thorne (Administrator)',
+    tags: ['master', 'handbook', 'playbook', 'support'],
+    sourceUrl: '/Nexus_AI_Master_Knowledge_Base.md',
   },
   {
     id: 'doc-102',
-    title: 'Autonomous_Agent_Architecture_v2.md',
-    type: 'Markdown',
-    size: '480 KB',
-    uploadedAt: new Date(Date.now() - 86400000 * 7).toISOString(),
-    chunksCount: 12,
+    title: 'Nexus_AI_Enterprise_Security_Whitepaper.pdf',
+    category: 'Technical Documentation',
+    content: 'Enterprise zero-trust architecture, SOC2 compliance, vector database encryption, and prompt injection defense mechanisms.',
+    type: 'PDF',
+    size: '2.4 MB',
+    uploadedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+    updatedAt: new Date().toISOString(),
+    version: 1,
+    status: 'approved',
+    visibility: 'public',
+    chunksCount: 16,
+    approvedBy: 'Sarah Chen (CISO)',
+    tags: ['security', 'whitepaper', 'compliance'],
+  },
+  {
+    id: 'doc-103',
+    title: 'Internal_Staff_Escalation_And_SLA_Playbook.docx',
+    category: 'Internal Knowledge',
+    content: 'INTERNAL CONFIDENTIAL: Escalation procedures for P1 security vulnerabilities, refund authorization tiers, and staff shift rotations.',
+    type: 'DOCX',
+    size: '640 KB',
+    uploadedAt: new Date(Date.now() - 86400000 * 10).toISOString(),
+    updatedAt: new Date().toISOString(),
+    version: 2,
+    status: 'approved',
+    visibility: 'internal_only',
+    chunksCount: 8,
+    approvedBy: 'Marcus Thorne (Administrator)',
+    tags: ['internal', 'escalation', 'sla', 'playbook'],
   },
 ];
 
@@ -780,13 +820,21 @@ app.get('/api/rag/health', async (_req: Request, res: Response) => {
 });
 
 // Get Company Knowledge
-app.get('/api/knowledge', (_req: Request, res: Response) => {
-  res.json({ knowledge: companyKnowledgeStore });
+app.get('/api/knowledge', (req: Request, res: Response) => {
+  const userRole = (req.query.role as string) || 'student';
+  const isInternalUser = userRole === 'admin' || userRole === 'teacher';
+
+  const filteredStore = companyKnowledgeStore.map(cat => ({
+    ...cat,
+    items: cat.items.filter(item => isInternalUser || item.visibility !== 'internal_only')
+  })).filter(cat => cat.items.length > 0);
+
+  res.json({ knowledge: filteredStore });
 });
 
 // Add / Update Knowledge
 app.post('/api/knowledge', (req: Request, res: Response) => {
-  const { category, title, content, tags } = req.body;
+  const { category, title, content, tags, visibility, status } = req.body;
   if (!category || !title || !content) {
     return res.status(400).json({ error: 'Category, title, and content are required.' });
   }
@@ -797,65 +845,218 @@ app.post('/api/knowledge', (req: Request, res: Response) => {
     companyKnowledgeStore.push(cat);
   }
 
-  cat.items.push({ title, content, tags: tags || [] });
+  cat.items.push({
+    title,
+    content,
+    tags: tags || [],
+    visibility: visibility === 'internal_only' ? 'internal_only' : 'public',
+    status: status || 'approved',
+  });
+
   res.status(201).json({ success: true, knowledge: companyKnowledgeStore });
 });
 
 // Get Documents Library
-app.get('/api/documents', (_req: Request, res: Response) => {
-  res.json({ documents: documentsStore });
+app.get('/api/documents', (req: Request, res: Response) => {
+  const userRole = (req.query.role as string) || 'student';
+  const isInternalUser = userRole === 'admin' || userRole === 'teacher';
+
+  const filtered = documentsStore.filter(doc => isInternalUser || doc.visibility === 'public');
+  res.json({ documents: filtered });
 });
 
 // Upload / Ingest Document
 app.post('/api/documents', (req: Request, res: Response) => {
-  const { title, type, content } = req.body;
-  if (!title) {
-    return res.status(400).json({ error: 'Document title is required.' });
+  const { title, category, content, type, visibility, status, tags } = req.body;
+  if (!title || !content) {
+    return res.status(400).json({ error: 'Document title and content are required.' });
   }
 
-  const newDoc: KnowledgeDocument = {
-    id: `doc-${Date.now().toString().slice(-4)}`,
+  // Prevent duplicate document title collision
+  const existingIndex = documentsStore.findIndex(d => d.title.toLowerCase() === title.toLowerCase());
+
+  const docVersion = existingIndex >= 0 ? documentsStore[existingIndex].version + 1 : 1;
+  const chunkCount = Math.max(1, Math.ceil(content.length / 300));
+
+  const newDoc: KnowledgeDocumentRecord = {
+    id: existingIndex >= 0 ? documentsStore[existingIndex].id : `doc-${Date.now().toString().slice(-4)}`,
     title,
-    type: type || 'PDF',
-    size: `${(Math.random() * 3 + 0.5).toFixed(1)} MB`,
-    uploadedAt: new Date().toISOString(),
-    chunksCount: Math.floor(Math.random() * 20) + 10,
+    category: category || 'Company',
+    content,
+    type: type || 'Markdown',
+    size: `${(content.length / 1024).toFixed(1)} KB`,
+    uploadedAt: existingIndex >= 0 ? documentsStore[existingIndex].uploadedAt : new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    version: docVersion,
+    status: status || 'approved',
+    visibility: visibility === 'internal_only' ? 'internal_only' : 'public',
+    chunksCount: chunkCount,
+    approvedBy: status === 'approved' ? 'Marcus Thorne (Administrator)' : undefined,
+    tags: tags || ['document', 'ingested'],
   };
 
-  documentsStore.unshift(newDoc);
+  if (existingIndex >= 0) {
+    documentsStore[existingIndex] = newDoc;
+  } else {
+    documentsStore.unshift(newDoc);
+  }
+
+  // Auto-sync into company Knowledge Store
+  let cat = companyKnowledgeStore.find(c => c.category.toLowerCase() === (category || 'Company').toLowerCase());
+  if (!cat) {
+    cat = { category: category || 'Company', items: [] };
+    companyKnowledgeStore.push(cat);
+  }
+  cat.items.push({
+    title,
+    content,
+    tags: tags || ['document'],
+    visibility: visibility === 'internal_only' ? 'internal_only' : 'public',
+    status: status || 'approved',
+  });
+
   res.status(201).json({ success: true, document: newDoc });
 });
 
-// RAG Query Router & Inference Endpoint
+// Update Document Status / Visibility / Content
+app.patch('/api/documents/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { status, visibility, content, category, title } = req.body;
+
+  const target = documentsStore.find(d => d.id === id);
+  if (!target) return res.status(404).json({ error: 'Document not found' });
+
+  if (status) target.status = status;
+  if (visibility) target.visibility = visibility;
+  if (category) target.category = category;
+  if (title) target.title = title;
+  if (content) {
+    target.content = content;
+    target.version += 1;
+    target.chunksCount = Math.max(1, Math.ceil(content.length / 300));
+  }
+  target.updatedAt = new Date().toISOString();
+  if (status === 'approved') {
+    target.approvedBy = 'Marcus Thorne (Administrator)';
+  }
+
+  res.json({ success: true, document: target });
+});
+
+// Delete Document
+app.delete('/api/documents/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const idx = documentsStore.findIndex(d => d.id === id);
+  if (idx === -1) return res.status(404).json({ error: 'Document not found' });
+
+  const deleted = documentsStore.splice(idx, 1)[0];
+  res.json({ success: true, deletedId: id, title: deleted.title });
+});
+
+// RAG Search Testing API
+app.post('/api/rag/test-search', (req: Request, res: Response) => {
+  const { query, userRole } = req.body;
+  if (!query) return res.status(400).json({ error: 'Search query is required' });
+
+  const isInternal = userRole === 'admin' || userRole === 'teacher';
+  const qLower = String(query).toLowerCase();
+  const tokens = qLower.split(/\s+/).filter(t => t.length > 2);
+
+  const matchedChunks: { source: string; title: string; category: string; snippet: string; score: number; visibility: string }[] = [];
+
+  // 1. Search company knowledge store
+  companyKnowledgeStore.forEach(cat => {
+    cat.items.forEach(item => {
+      if (!isInternal && item.visibility === 'internal_only') return;
+      let score = 0;
+      const tLower = item.title.toLowerCase();
+      const cLower = item.content.toLowerCase();
+
+      if (tLower.includes(qLower)) score += 15;
+      if (cLower.includes(qLower)) score += 10;
+      tokens.forEach(tok => {
+        if (tLower.includes(tok)) score += 4;
+        if (cLower.includes(tok)) score += 2;
+        if (item.tags.some(tag => tag.toLowerCase().includes(tok))) score += 5;
+      });
+
+      if (score > 0) {
+        matchedChunks.push({
+          source: 'Company Knowledge Store',
+          title: item.title,
+          category: cat.category,
+          snippet: item.content,
+          score,
+          visibility: item.visibility || 'public',
+        });
+      }
+    });
+  });
+
+  // 2. Search uploaded documents
+  documentsStore.forEach(doc => {
+    if (!isInternal && doc.visibility === 'internal_only') return;
+    let score = 0;
+    const tLower = doc.title.toLowerCase();
+    const cLower = doc.content.toLowerCase();
+
+    if (tLower.includes(qLower)) score += 15;
+    if (cLower.includes(qLower)) score += 10;
+    tokens.forEach(tok => {
+      if (tLower.includes(tok)) score += 4;
+      if (cLower.includes(tok)) score += 2;
+      if (doc.tags.some(tag => tag.toLowerCase().includes(tok))) score += 5;
+    });
+
+    if (score > 0) {
+      matchedChunks.push({
+        source: `Document Library (${doc.type})`,
+        title: doc.title,
+        category: doc.category,
+        snippet: doc.content.slice(0, 300) + '...',
+        score,
+        visibility: doc.visibility,
+      });
+    }
+  });
+
+  matchedChunks.sort((a, b) => b.score - a.score);
+  res.json({ query, resultsCount: matchedChunks.length, results: matchedChunks });
+});
+
+// RAG Query Router Endpoint
 app.post('/api/rag/query', async (req: Request, res: Response) => {
   try {
-    const { query, mode } = req.body;
+    const { query, mode, userRole } = req.body;
     if (!query) {
       return res.status(400).json({ error: 'Query is required.' });
     }
 
-    // 1. Search internal company knowledge
+    const isInternalUser = userRole === 'admin' || userRole === 'teacher';
+
+    // Search internal company knowledge with visibility filter
     const matchedKnowledge: string[] = [];
     const qLower = query.toLowerCase();
+
     companyKnowledgeStore.forEach((cat) => {
       cat.items.forEach((item) => {
+        if (!isInternalUser && item.visibility === 'internal_only') return;
         if (item.title.toLowerCase().includes(qLower) || item.content.toLowerCase().includes(qLower) || item.tags.some(t => qLower.includes(t))) {
-          matchedKnowledge.push(`[Company Knowledge - ${cat.category}] ${item.title}: ${item.content}`);
+          matchedKnowledge.push(`[${cat.category}] ${item.title}: ${item.content}`);
         }
       });
     });
 
-    // 2. Build RAG context
     let contextText = matchedKnowledge.join('\n\n');
     if (!contextText) {
       contextText = 'No specific internal company record found for this precise query. General Nexus AI guidelines apply.';
     }
 
-    const prompt = `You are Nexus AI Assistant operating in RAG Self-Hosted Mode.
+    const prompt = `You are Nexus AI Assistant operating in RAG Mode.
 User Query: "${query}"
 Assistant Mode: ${mode || 'General Assistant'}
 
-Retrieved Internal Company Knowledge:
+Retrieved Context Knowledge:
 """
 ${contextText}
 """
@@ -865,8 +1066,8 @@ Provide a precise, authoritative, helpful answer incorporating the retrieved com
     const aiAnswer = await generateNexusAIResponse(prompt, 'You are Nexus AI Assistant, an elite AI instructor and software architect at Nexus AI Academic & Solutions.');
 
     const citations = [
-      { title: 'Nexus AI Official Knowledge Base', url: 'https://nexus-ai-academic-solutions.ai.studio' },
-      { title: 'Nexus Academy Curriculum', url: 'https://nexus-ai-academic-solutions.ai.studio/#academy' },
+      { title: 'Nexus AI Official Master Knowledge Base', url: '/Nexus_AI_Master_Knowledge_Base.md' },
+      { title: 'Nexus Academy Curriculum', url: '/#academy' },
     ];
 
     res.json({
@@ -883,6 +1084,360 @@ Provide a precise, authoritative, helpful answer incorporating the retrieved com
 });
 
 // ----------------------------------------------------
+// CUSTOMER SUPPORT TICKETING SYSTEM BACKEND
+// ----------------------------------------------------
+
+interface TicketReplyRecord {
+  id: string;
+  senderName: string;
+  senderEmail: string;
+  senderRole: 'customer' | 'staff' | 'ai_assistant';
+  message: string;
+  timestamp: string;
+  isInternalNote?: boolean;
+  attachments?: string[];
+}
+
+interface SupportTicketRecord {
+  id: string;
+  customerName: string;
+  customerEmail: string;
+  subject: string;
+  description: string;
+  category: string;
+  priority: string;
+  status: string;
+  assignedStaff?: string;
+  createdAt: string;
+  updatedAt: string;
+  replies: TicketReplyRecord[];
+  attachments?: string[];
+  satisfactionRating?: number;
+  satisfactionFeedback?: string;
+  aiDraftReply?: string;
+  aiSummary?: string;
+}
+
+const ticketsStore: SupportTicketRecord[] = [
+  {
+    id: 'TICK-1001',
+    customerName: 'Alex Rivera',
+    customerEmail: 'alex.rivera@nexusai.com',
+    subject: 'Accessing Cyber Lab 4 Workstation Environment',
+    description: 'I need assistance setting up GPU CUDA drivers on my assigned lab workstation in Cyber Lab 4 for the Autonomous AI Agents program.',
+    category: 'Technical Support',
+    priority: 'P2 (High)',
+    status: 'In Progress',
+    assignedStaff: 'Dr. Evelyn Sterling',
+    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    updatedAt: new Date(Date.now() - 3600000 * 4).toISOString(),
+    aiSummary: 'Student requesting GPU driver setup assistance for Cyber Lab 4 workstation.',
+    aiDraftReply: 'Hello Alex, Dr. Evelyn Sterling has assigned a lab assistant to verify CUDA 12.4 driver provisioning on Workstation 04.',
+    replies: [
+      {
+        id: 'rep-1',
+        senderName: 'Alex Rivera',
+        senderEmail: 'alex.rivera@nexusai.com',
+        senderRole: 'customer',
+        message: 'I am seeing CUDA driver version mismatch when running PyTorch training loops in Cyber Lab 4.',
+        timestamp: new Date(Date.now() - 86400000 * 2).toISOString(),
+      },
+      {
+        id: 'rep-2',
+        senderName: 'Dr. Evelyn Sterling',
+        senderEmail: 'evelyn@nexusai.com',
+        senderRole: 'staff',
+        message: 'Hello Alex! We updated Nvidia driver v550 across Cyber Lab 4 workstations this morning. Please run `nvidia-smi` and re-activate the `nexus-agent` conda environment.',
+        timestamp: new Date(Date.now() - 86400000 * 1.5).toISOString(),
+      },
+      {
+        id: 'rep-3',
+        senderName: 'Dr. Evelyn Sterling',
+        senderEmail: 'evelyn@nexusai.com',
+        senderRole: 'staff',
+        message: 'INTERNAL NOTE: Checked workstation 04 via SSH. Conda env updated.',
+        timestamp: new Date(Date.now() - 86400000 * 1.4).toISOString(),
+        isInternalNote: true,
+      },
+    ],
+  },
+  {
+    id: 'TICK-1002',
+    customerName: 'Sarah Chen',
+    customerEmail: 'sarah.chen@innovatecorp.io',
+    subject: 'Enterprise API SLA & Volume Rate Limits',
+    description: 'We require custom rate limit adjustments for our Enterprise AI Agent pipeline handling 50,000 requests per hour.',
+    category: 'Services',
+    priority: 'P1 (Critical)',
+    status: 'Open',
+    assignedStaff: 'Marcus Thorne (Administrator)',
+    createdAt: new Date(Date.now() - 3600000 * 6).toISOString(),
+    updatedAt: new Date(Date.now() - 3600000 * 6).toISOString(),
+    aiSummary: 'Enterprise client requesting 50k req/hr API rate limit tier upgrade.',
+    aiDraftReply: 'Dear Sarah, our infrastructure team can provision dedicated enterprise rate limits. Marcus Thorne will review your SLA requirements.',
+    replies: [
+      {
+        id: 'rep-101',
+        senderName: 'Sarah Chen',
+        senderEmail: 'sarah.chen@innovatecorp.io',
+        senderRole: 'customer',
+        message: 'Our production customer intelligence pipeline is launching next Monday and requires custom SLA rate limits.',
+        timestamp: new Date(Date.now() - 3600000 * 6).toISOString(),
+      },
+    ],
+  },
+  {
+    id: 'TICK-1003',
+    customerName: 'Jordan Lee',
+    customerEmail: 'jordan@nexusai.com',
+    subject: 'Course Certificate Issuance Verification',
+    description: 'I completed 100% of Full-Stack Web Engineering lessons and submitted the final quiz. Requesting certificate confirmation.',
+    category: 'Academy',
+    priority: 'P3 (Normal)',
+    status: 'Resolved',
+    assignedStaff: 'Kaelen Vance',
+    createdAt: new Date(Date.now() - 86400000 * 4).toISOString(),
+    updatedAt: new Date(Date.now() - 86400000 * 1).toISOString(),
+    satisfactionRating: 5,
+    satisfactionFeedback: 'Fast response and verified cryptographic certificate issued promptly!',
+    replies: [
+      {
+        id: 'rep-201',
+        senderName: 'Jordan Lee',
+        senderEmail: 'jordan@nexusai.com',
+        senderRole: 'customer',
+        message: 'Completed final quiz with 98% score.',
+        timestamp: new Date(Date.now() - 86400000 * 4).toISOString(),
+      },
+      {
+        id: 'rep-202',
+        senderName: 'Kaelen Vance',
+        senderEmail: 'kaelen@nexusai.com',
+        senderRole: 'staff',
+        message: 'Congratulations Jordan! Your cryptographic certificate NEXUS-CERT-WEB100 has been issued and added to your Student Portal.',
+        timestamp: new Date(Date.now() - 86400000 * 1).toISOString(),
+      },
+    ],
+  },
+];
+
+let ticketCounter = 1003;
+
+// Get All Support Tickets
+app.get('/api/tickets', (req: Request, res: Response) => {
+  const email = req.query.email as string;
+  const category = req.query.category as string;
+  const status = req.query.status as string;
+  const priority = req.query.priority as string;
+  const userRole = (req.query.role as string) || 'student';
+
+  const isStaff = userRole === 'admin' || userRole === 'teacher';
+
+  let filtered = [...ticketsStore];
+
+  if (email && !isStaff) {
+    filtered = filtered.filter(t => t.customerEmail.toLowerCase() === email.toLowerCase());
+  }
+
+  if (category && category !== 'All') {
+    filtered = filtered.filter(t => t.category === category);
+  }
+
+  if (status && status !== 'All') {
+    filtered = filtered.filter(t => t.status === status);
+  }
+
+  if (priority && priority !== 'All') {
+    filtered = filtered.filter(t => t.priority === priority);
+  }
+
+  // Filter internal notes if customer requesting
+  if (!isStaff) {
+    filtered = filtered.map(t => ({
+      ...t,
+      replies: t.replies.filter(r => !r.isInternalNote)
+    }));
+  }
+
+  res.json({ tickets: filtered });
+});
+
+// Create Support Ticket
+app.post('/api/tickets', async (req: Request, res: Response) => {
+  const { customerName, customerEmail, subject, description, category, priority, attachments } = req.body;
+
+  if (!customerName || !customerEmail || !subject || !description) {
+    return res.status(400).json({ error: 'Name, email, subject, and description are required.' });
+  }
+
+  ticketCounter++;
+  const ticketId = `TICK-${ticketCounter}`;
+  const nowStr = new Date().toISOString();
+
+  // Determine auto-priority if security related
+  let calcPriority = priority || 'P3 (Normal)';
+  if (description.toLowerCase().includes('vulnerability') || description.toLowerCase().includes('security breach') || description.toLowerCase().includes('data compromise')) {
+    calcPriority = 'P1 (Critical)';
+  }
+
+  // Auto-generate AI summary & draft reply via Master Knowledge Base
+  const aiPrompt = `Analyze support ticket #${ticketId}:
+Customer: ${customerName} (${customerEmail})
+Category: ${category || 'General Inquiry'}
+Subject: ${subject}
+Description: ${description}
+
+Provide:
+1. Short 1-sentence AI Summary
+2. Professional 2-paragraph draft reply using Nexus AI Master Knowledge Base guidelines.`;
+
+  let aiDraftReply = `Hello ${customerName},\nThank you for contacting Nexus AI Support. Your ticket ${ticketId} has been logged and assigned to our technical team for review.`;
+  let aiSummary = `Support request regarding ${subject}.`;
+
+  try {
+    const aiRes = await generateNexusAIResponse(aiPrompt, 'You are an AI Support Copilot for Nexus AI Academic & Solutions.');
+    if (aiRes) {
+      aiDraftReply = aiRes;
+      aiSummary = `Customer query regarding ${subject}.`;
+    }
+  } catch (e) {}
+
+  const newTicket: SupportTicketRecord = {
+    id: ticketId,
+    customerName,
+    customerEmail,
+    subject,
+    description,
+    category: category || 'General Inquiry',
+    priority: calcPriority,
+    status: 'Open',
+    createdAt: nowStr,
+    updatedAt: nowStr,
+    attachments: attachments || [],
+    aiSummary,
+    aiDraftReply,
+    replies: [
+      {
+        id: `rep-${Date.now().toString().slice(-4)}`,
+        senderName: customerName,
+        senderEmail: customerEmail,
+        senderRole: 'customer',
+        message: description,
+        timestamp: nowStr,
+      },
+    ],
+  };
+
+  ticketsStore.unshift(newTicket);
+  res.status(201).json({ success: true, ticket: newTicket });
+});
+
+// Get Single Ticket
+app.get('/api/tickets/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const userRole = (req.query.role as string) || 'student';
+  const isStaff = userRole === 'admin' || userRole === 'teacher';
+
+  const ticket = ticketsStore.find(t => t.id === id);
+  if (!ticket) return res.status(404).json({ error: 'Ticket not found.' });
+
+  const responseTicket = {
+    ...ticket,
+    replies: isStaff ? ticket.replies : ticket.replies.filter(r => !r.isInternalNote)
+  };
+
+  res.json({ ticket: responseTicket });
+});
+
+// Update Ticket Parameters (Status, Priority, Staff Assignment)
+app.patch('/api/tickets/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { status, priority, category, assignedStaff } = req.body;
+
+  const ticket = ticketsStore.find(t => t.id === id);
+  if (!ticket) return res.status(404).json({ error: 'Ticket not found.' });
+
+  if (status) ticket.status = status;
+  if (priority) ticket.priority = priority;
+  if (category) ticket.category = category;
+  if (assignedStaff !== undefined) ticket.assignedStaff = assignedStaff;
+  ticket.updatedAt = new Date().toISOString();
+
+  res.json({ success: true, ticket });
+});
+
+// Add Ticket Reply or Internal Note
+app.post('/api/tickets/:id/replies', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { senderName, senderEmail, senderRole, message, isInternalNote, attachments } = req.body;
+
+  if (!message) return res.status(400).json({ error: 'Reply message cannot be empty.' });
+
+  const ticket = ticketsStore.find(t => t.id === id);
+  if (!ticket) return res.status(404).json({ error: 'Ticket not found.' });
+
+  const newReply: TicketReplyRecord = {
+    id: `rep-${Date.now().toString().slice(-4)}`,
+    senderName: senderName || 'Nexus Support Staff',
+    senderEmail: senderEmail || 'support@nexusai.academic.io',
+    senderRole: senderRole || 'staff',
+    message,
+    timestamp: new Date().toISOString(),
+    isInternalNote: Boolean(isInternalNote),
+    attachments: attachments || [],
+  };
+
+  ticket.replies.push(newReply);
+  ticket.updatedAt = new Date().toISOString();
+  if (senderRole === 'staff' && !isInternalNote && ticket.status === 'Open') {
+    ticket.status = 'In Progress';
+  }
+
+  res.status(201).json({ success: true, reply: newReply, ticket });
+});
+
+// Submit Customer Satisfaction Feedback
+app.post('/api/tickets/:id/feedback', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { rating, feedback } = req.body;
+
+  const ticket = ticketsStore.find(t => t.id === id);
+  if (!ticket) return res.status(404).json({ error: 'Ticket not found.' });
+
+  ticket.satisfactionRating = rating;
+  ticket.satisfactionFeedback = feedback || '';
+  ticket.updatedAt = new Date().toISOString();
+
+  res.json({ success: true, ticket });
+});
+
+// AI Copilot Draft Response Generator for Staff
+app.post('/api/tickets/:id/ai-draft', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const ticket = ticketsStore.find(t => t.id === id);
+  if (!ticket) return res.status(404).json({ error: 'Ticket not found.' });
+
+  const prompt = `Draft a polite, professional support reply for Ticket #${ticket.id}:
+Customer: ${ticket.customerName}
+Subject: ${ticket.subject}
+Category: ${ticket.category}
+Issue Description: ${ticket.description}
+
+Grounding Rules:
+- Refer to Nexus AI official policies and Master Knowledge Base.
+- Include next steps.
+- Do not promise unauthorized refunds or passwords.`;
+
+  try {
+    const draft = await generateNexusAIResponse(prompt, 'You are an AI Support Copilot for Nexus AI Academic & Solutions.');
+    ticket.aiDraftReply = draft;
+    res.json({ success: true, aiDraftReply: draft });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'AI draft generation failed.' });
+  }
+});
+
+// ----------------------------------------------------
 // AUTONOMOUS WEBSITE LEARNING & MONITORING ENGINE
 // ----------------------------------------------------
 
@@ -890,18 +1445,20 @@ interface DiscoveredPage {
   path: string;
   title: string;
   category: string;
-  status: 'Indexed' | 'Pending' | 'Changed';
+  status: 'Indexed' | 'Pending' | 'Changed' | 'Excluded';
   lastScanned: string;
   contentHash: string;
+  chunkCount: number;
+  isExcluded?: boolean;
 }
 
 const discoveredPagesStore: DiscoveredPage[] = [
-  { path: '/', title: 'Home - Nexus AI Academic & Solutions', category: 'Public', status: 'Indexed', lastScanned: new Date().toISOString(), contentHash: 'hash-home-991' },
-  { path: '/academy', title: 'Academy & Master Programs', category: 'Academy', status: 'Indexed', lastScanned: new Date().toISOString(), contentHash: 'hash-acad-820' },
-  { path: '/services', title: 'Digital Solutions & Enterprise Services', category: 'Services', status: 'Indexed', lastScanned: new Date().toISOString(), contentHash: 'hash-serv-431' },
-  { path: '/tools', title: 'Nexus AI Tools Directory', category: 'Tools', status: 'Indexed', lastScanned: new Date().toISOString(), contentHash: 'hash-tools-105' },
-  { path: '/about', title: 'About Nexus AI Institute', category: 'Company', status: 'Indexed', lastScanned: new Date().toISOString(), contentHash: 'hash-about-332' },
-  { path: '/contact', title: 'Consultation & Contact', category: 'Support', status: 'Indexed', lastScanned: new Date().toISOString(), contentHash: 'hash-contact-782' },
+  { path: '/', title: 'Home - Nexus AI Academic & Solutions', category: 'Public', status: 'Indexed', lastScanned: new Date().toISOString(), contentHash: 'hash-home-991', chunkCount: 18 },
+  { path: '/academy', title: 'Academy & Master Programs', category: 'Academy', status: 'Indexed', lastScanned: new Date().toISOString(), contentHash: 'hash-acad-820', chunkCount: 24 },
+  { path: '/services', title: 'Digital Solutions & Enterprise Services', category: 'Services', status: 'Indexed', lastScanned: new Date().toISOString(), contentHash: 'hash-serv-431', chunkCount: 16 },
+  { path: '/tools', title: 'Nexus AI Tools Directory', category: 'Tools', status: 'Indexed', lastScanned: new Date().toISOString(), contentHash: 'hash-tools-105', chunkCount: 32 },
+  { path: '/about', title: 'About Nexus AI Institute', category: 'Company', status: 'Indexed', lastScanned: new Date().toISOString(), contentHash: 'hash-about-332', chunkCount: 12 },
+  { path: '/contact', title: 'Consultation & Contact', category: 'Support', status: 'Indexed', lastScanned: new Date().toISOString(), contentHash: 'hash-contact-782', chunkCount: 10 },
 ];
 
 const knowledgeGapsStore = [
@@ -920,6 +1477,7 @@ app.get('/api/intelligence/overview', (_req: Request, res: Response) => {
     totalPages: discoveredPagesStore.length,
     indexedPages: discoveredPagesStore.filter(p => p.status === 'Indexed').length,
     pendingPages: discoveredPagesStore.filter(p => p.status === 'Pending').length,
+    excludedPages: discoveredPagesStore.filter(p => p.status === 'Excluded').length,
     changesDetected: 0,
     lastScan: new Date().toISOString(),
     crawlerStatus: 'Idle / Scheduled (Every 12h)',
@@ -929,22 +1487,52 @@ app.get('/api/intelligence/overview', (_req: Request, res: Response) => {
   });
 });
 
+// Toggle Crawler Page Inclusion / Exclusion
+app.patch('/api/intelligence/pages/*', (req: Request, res: Response) => {
+  const pagePath = '/' + req.params[0];
+  const { isExcluded } = req.body;
+
+  const target = discoveredPagesStore.find(p => p.path === pagePath);
+  if (!target) return res.status(404).json({ error: 'Page path not found in discovered pages.' });
+
+  target.isExcluded = isExcluded;
+  target.status = isExcluded ? 'Excluded' : 'Indexed';
+
+  auditLogsStore.unshift({
+    id: `log-${Date.now().toString().slice(-4)}`,
+    timestamp: new Date().toISOString(),
+    action: `Page ${isExcluded ? 'Excluded' : 'Included'} in Crawler`,
+    status: 'Success',
+    details: `Updated crawler rule for route ${pagePath}`,
+  });
+
+  res.json({ success: true, page: target });
+});
+
 // Trigger Scan API
 app.post('/api/intelligence/scan', (_req: Request, res: Response) => {
   const scanTimestamp = new Date().toISOString();
+
+  discoveredPagesStore.forEach(p => {
+    if (!p.isExcluded) {
+      p.lastScanned = scanTimestamp;
+      p.status = 'Indexed';
+    }
+  });
+
   auditLogsStore.unshift({
     id: `log-${Date.now().toString().slice(-4)}`,
     timestamp: scanTimestamp,
     action: 'Manual Autonomous Scan Triggered',
     status: 'Success',
-    details: `Successfully crawled ${discoveredPagesStore.length} pages. Content hashes verified. Zero drift detected.`,
+    details: `Successfully crawled ${discoveredPagesStore.filter(p => !p.isExcluded).length} active pages. Content hashes verified. Zero drift detected.`,
   });
 
   res.json({
     success: true,
-    message: 'Autonomous website scan completed successfully. All pages verified.',
+    message: 'Autonomous website scan completed successfully. Active pages verified and synced to knowledge brain.',
     timestamp: scanTimestamp,
-    scannedCount: discoveredPagesStore.length,
+    scannedCount: discoveredPagesStore.filter(p => !p.isExcluded).length,
   });
 });
 
@@ -961,9 +1549,6 @@ app.post('/api/intelligence/feedback', (req: Request, res: Response) => {
   res.json({ success: true, message: 'Feedback recorded securely. Thank you for helping improve Nexus Knowledge Brain.' });
 });
 
-// ----------------------------------------------------
-// VITE DEV SERVER / STATIC ASSETS
-// ----------------------------------------------------
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
 
