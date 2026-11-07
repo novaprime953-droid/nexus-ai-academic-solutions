@@ -1,0 +1,156 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-heading: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --color-midnight: #10172F;
+    --color-secondary: #151F40;
+    --color-surface: #1A2850;
+    --color-neon-blue: #4263FF;
+    --color-electric-cyan: #00D9FF;
+    --color-neon-purple: #895BFF;
+    --color-violet: #A855F7;
+    --color-soft-white: #F1F5FF;
+    --color-muted: #A7B3D1;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: #10172F;
+    color: #F1F5FF;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.02em;
+  }
+}
+
+/* Premium Futuristic Blue-Purple Glassmorphism & Neon Surfaces */
+.bg-midnight-gradient {
+  background: radial-gradient(circle at 50% 0%, #1A2850 0%, #151F40 45%, #10172F 100%);
+}
+
+.glass-panel {
+  background: linear-gradient(135deg, rgba(21, 31, 64, 0.75) 0%, rgba(16, 23, 47, 0.85) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(66, 99, 255, 0.25);
+  box-shadow: 0 8px 32px 0 rgba(10, 15, 35, 0.4);
+}
+
+.glass-panel-hover:hover {
+  background: linear-gradient(135deg, rgba(26, 40, 80, 0.85) 0%, rgba(21, 31, 64, 0.95) 100%);
+  border-color: rgba(0, 217, 255, 0.5);
+  box-shadow: 0 0 35px -5px rgba(66, 99, 255, 0.4), 0 0 15px -2px rgba(0, 217, 255, 0.3);
+}
+
+.glass-card {
+  background: linear-gradient(135deg, rgba(137, 91, 255, 0.08) 0%, rgba(66, 99, 255, 0.04) 100%);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(137, 91, 255, 0.2);
+}
+
+.neon-border-glow {
+  border: 1px solid rgba(0, 217, 255, 0.35);
+  box-shadow: 0 0 15px rgba(0, 217, 255, 0.18), inset 0 0 15px rgba(66, 99, 255, 0.12);
+}
+
+.neon-purple-glow {
+  border: 1px solid rgba(137, 91, 255, 0.38);
+  box-shadow: 0 0 20px rgba(137, 91, 255, 0.22);
+}
+
+/* Animated Gradient Typography */
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.text-gradient-animated {
+  background: linear-gradient(270deg, #F1F5FF 0%, #00D9FF 25%, #A855F7 50%, #4263FF 75%, #F1F5FF 100%);
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradientShift 7s ease infinite;
+}
+
+.text-gradient-cyan-purple {
+  background: linear-gradient(135deg, #00D9FF 0%, #4263FF 50%, #A855F7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Staggered entrance animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-entrance-1 {
+  animation: fadeInUp 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-entrance-2 {
+  animation: fadeInUp 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.12s forwards;
+  opacity: 0;
+}
+
+.animate-entrance-3 {
+  animation: fadeInUp 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.24s forwards;
+  opacity: 0;
+}
+
+.animate-entrance-4 {
+  animation: fadeInUp 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.36s forwards;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .text-gradient-animated {
+    animation: none;
+    background-position: 0% 50%;
+  }
+  .animate-entrance-1,
+  .animate-entrance-2,
+  .animate-entrance-3,
+  .animate-entrance-4 {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Custom Midnight Blue Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #101A3B;
+}
+::-webkit-scrollbar-thumb {
+  background: #172554;
+  border: 1px solid rgba(66, 99, 255, 0.2);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #233876;
+}

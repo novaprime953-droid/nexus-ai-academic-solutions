@@ -1,0 +1,8 @@
+{
+  "name": "NEXUS AI ACADEMIC & SOLUTIONS",
+  "description": "Empowering individuals and businesses through AI education, intelligent tools, and innovative digital solutions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
