@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { COURSES } from '../data/mockData';
 import { PageRoute, Course, CourseModule, Lesson, Quiz, QuizAttempt, Assignment, AssignmentSubmission, IssuedCertificate, AcademyAnnouncement } from '../types';
+import { safeFetchJson } from '../utils/api';
 import confetti from 'canvas-confetti';
 import {
   Award,
@@ -97,59 +98,39 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   const [dispatchingAnc, setDispatchingAnc] = useState(false);
 
   const fetchProgress = async () => {
-    try {
-      const email = user?.email || 'alex.rivera@nexusai.com';
-      const res = await fetch(`/api/lms/progress?email=${encodeURIComponent(email)}`);
-      if (res.ok) {
-        const data = await res.json();
-        const progMap: Record<string, any> = {};
-        (data.progress || []).forEach((p: any) => {
-          progMap[p.courseId] = p;
-        });
-        setCourseProgress(progMap);
-      }
-    } catch (e) {
-      console.error(e);
+    const email = user?.email || 'alex.rivera@nexusai.com';
+    const res = await safeFetchJson(`/api/lms/progress?email=${encodeURIComponent(email)}`);
+    if (res.success && res.data) {
+      const progMap: Record<string, any> = {};
+      (res.data.progress || []).forEach((p: any) => {
+        progMap[p.courseId] = p;
+      });
+      setCourseProgress(progMap);
     }
   };
 
   const fetchCertificates = async () => {
-    try {
-      const email = user?.email || 'alex.rivera@nexusai.com';
-      const res = await fetch(`/api/lms/certificates?email=${encodeURIComponent(email)}`);
-      if (res.ok) {
-        const data = await res.json();
-        setCertificates(data.certificates || []);
-      }
-    } catch (e) {
-      console.error(e);
+    const email = user?.email || 'alex.rivera@nexusai.com';
+    const res = await safeFetchJson(`/api/lms/certificates?email=${encodeURIComponent(email)}`);
+    if (res.success && res.data) {
+      setCertificates(res.data.certificates || []);
     }
   };
 
   const fetchAnnouncements = async () => {
-    try {
-      const res = await fetch('/api/lms/announcements');
-      if (res.ok) {
-        const data = await res.json();
-        setAnnouncements(data.announcements || []);
-      }
-    } catch (e) {
-      console.error(e);
+    const res = await safeFetchJson('/api/lms/announcements');
+    if (res.success && res.data) {
+      setAnnouncements(res.data.announcements || []);
     }
   };
 
   const fetchSubmissions = async () => {
-    try {
-      const email = user?.email || 'alex.rivera@nexusai.com';
-      const courseId = enrolledCourses[0]?.id || 'artificial-intelligence';
-      const res = await fetch(`/api/lms/assignments/${courseId}?role=${user?.role || 'student'}&email=${encodeURIComponent(email)}`);
-      if (res.ok) {
-        const data = await res.json();
-        setAssignments(data.assignments || []);
-        setUserSubmissions(data.submissions || []);
-      }
-    } catch (e) {
-      console.error(e);
+    const email = user?.email || 'alex.rivera@nexusai.com';
+    const courseId = enrolledCourses[0]?.id || 'artificial-intelligence';
+    const res = await safeFetchJson(`/api/lms/assignments/${courseId}?role=${user?.role || 'student'}&email=${encodeURIComponent(email)}`);
+    if (res.success && res.data) {
+      setAssignments(res.data.assignments || []);
+      setUserSubmissions(res.data.submissions || []);
     }
   };
 
@@ -161,61 +142,46 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   }, []);
 
   const handleOpenLessonViewer = async (course: Course) => {
-    try {
-      const res = await fetch(`/api/lms/courses/${course.id}/modules`);
-      if (res.ok) {
-        const data = await res.json();
-        const modules: CourseModule[] = data.modules || [];
-        setActiveCourseModules(modules);
-        if (modules.length > 0 && modules[0].lessons.length > 0) {
-          setActiveLessonModal({
-            course,
-            module: modules[0],
-            lesson: modules[0].lessons[0]
-          });
-        }
+    const res = await safeFetchJson(`/api/lms/courses/${course.id}/modules`);
+    if (res.success && res.data) {
+      const modules: CourseModule[] = res.data.modules || [];
+      setActiveCourseModules(modules);
+      if (modules.length > 0 && modules[0].lessons.length > 0) {
+        setActiveLessonModal({
+          course,
+          module: modules[0],
+          lesson: modules[0].lessons[0]
+        });
       }
-    } catch (e) {
-      console.error(e);
     }
   };
 
   const handleToggleLessonComplete = async (courseId: string, lessonId: string) => {
-    try {
-      const email = user?.email || 'alex.rivera@nexusai.com';
-      const currentProg = courseProgress[courseId]?.completedLessonIds || [];
-      const isCompleted = !currentProg.includes(lessonId);
+    const email = user?.email || 'alex.rivera@nexusai.com';
+    const currentProg = courseProgress[courseId]?.completedLessonIds || [];
+    const isCompleted = !currentProg.includes(lessonId);
 
-      const res = await fetch('/api/lms/progress', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          studentEmail: email,
-          courseId,
-          lessonId,
-          isCompleted
-        })
-      });
+    const res = await safeFetchJson('/api/lms/progress', {
+      method: 'POST',
+      body: JSON.stringify({
+        studentEmail: email,
+        courseId,
+        lessonId,
+        isCompleted
+      })
+    });
 
-      if (res.ok) {
-        fetchProgress();
-      }
-    } catch (e) {
-      console.error(e);
+    if (res.success) {
+      fetchProgress();
     }
   };
 
   const handleOpenQuizModal = async (courseId: string) => {
-    try {
-      const res = await fetch(`/api/lms/quizzes/${courseId}?role=${user?.role || 'student'}`);
-      if (res.ok) {
-        const data = await res.json();
-        setActiveQuizModal({ courseId, quiz: data.quiz });
-        setQuizAnswers({});
-        setQuizResult(null);
-      }
-    } catch (e) {
-      console.error(e);
+    const res = await safeFetchJson(`/api/lms/quizzes/${courseId}?role=${user?.role || 'student'}`);
+    if (res.success && res.data) {
+      setActiveQuizModal({ courseId, quiz: res.data.quiz });
+      setQuizAnswers({});
+      setQuizResult(null);
     }
   };
 
@@ -223,120 +189,94 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     if (!activeQuizModal) return;
     setSubmittingQuiz(true);
 
-    try {
-      const res = await fetch(`/api/lms/quizzes/${activeQuizModal.quiz.id}/submit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          courseId: activeQuizModal.courseId,
-          studentEmail: user?.email || 'alex.rivera@nexusai.com',
-          studentName: user?.name || 'Alex Rivera',
-          answers: quizAnswers
-        })
-      });
+    const res = await safeFetchJson(`/api/lms/quizzes/${activeQuizModal.quiz.id}/submit`, {
+      method: 'POST',
+      body: JSON.stringify({
+        courseId: activeQuizModal.courseId,
+        studentEmail: user?.email || 'alex.rivera@nexusai.com',
+        studentName: user?.name || 'Alex Rivera',
+        answers: quizAnswers
+      })
+    });
 
-      if (res.ok) {
-        const data = await res.json();
-        setQuizResult(data.attempt);
-        if (data.attempt.passed) {
-          confetti({ particleCount: 80, spread: 60 });
-        }
-        fetchProgress();
+    if (res.success && res.data) {
+      setQuizResult(res.data.attempt);
+      if (res.data.attempt?.passed) {
+        confetti({ particleCount: 80, spread: 60 });
       }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setSubmittingQuiz(false);
+      fetchProgress();
     }
+    setSubmittingQuiz(false);
   };
 
   const handleSubmitAssignment = async () => {
     if (!activeAssignmentModal || !assignmentContent.trim()) return;
     setSubmittingAssignment(true);
 
-    try {
-      const res = await fetch(`/api/lms/assignments/${activeAssignmentModal.assignment.id}/submit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          courseId: activeAssignmentModal.assignment.courseId,
-          studentEmail: user?.email || 'alex.rivera@nexusai.com',
-          studentName: user?.name || 'Alex Rivera',
-          content: assignmentContent,
-          fileName: assignmentFileName || 'nexus_assignment_solution.zip'
-        })
-      });
+    const res = await safeFetchJson(`/api/lms/assignments/${activeAssignmentModal.assignment.id}/submit`, {
+      method: 'POST',
+      body: JSON.stringify({
+        courseId: activeAssignmentModal.assignment.courseId,
+        studentEmail: user?.email || 'alex.rivera@nexusai.com',
+        studentName: user?.name || 'Alex Rivera',
+        content: assignmentContent,
+        fileName: assignmentFileName || 'nexus_assignment_solution.zip'
+      })
+    });
 
-      if (res.ok) {
-        setAssignmentContent('');
-        setAssignmentFileName('');
-        setActiveAssignmentModal(null);
-        fetchSubmissions();
-        confetti({ particleCount: 50, spread: 50 });
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setSubmittingAssignment(false);
+    if (res.success) {
+      setAssignmentContent('');
+      setAssignmentFileName('');
+      setActiveAssignmentModal(null);
+      fetchSubmissions();
+      confetti({ particleCount: 50, spread: 50 });
     }
+    setSubmittingAssignment(false);
   };
 
   const handleGradeSubmission = async () => {
     if (!gradingSubmission) return;
     setGradingSubmitting(true);
 
-    try {
-      const res = await fetch(`/api/lms/assignments/${gradingSubmission.id}/grade`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          gradePoints,
-          instructorFeedback: gradeFeedback,
-          gradedBy: user?.name || 'Dr. Evelyn Sterling'
-        })
-      });
+    const res = await safeFetchJson(`/api/lms/assignments/${gradingSubmission.id}/grade`, {
+      method: 'POST',
+      body: JSON.stringify({
+        gradePoints,
+        instructorFeedback: gradeFeedback,
+        gradedBy: user?.name || 'Dr. Evelyn Sterling'
+      })
+    });
 
-      if (res.ok) {
-        setGradingSubmission(null);
-        fetchSubmissions();
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setGradingSubmitting(false);
+    if (res.success) {
+      setGradingSubmission(null);
+      fetchSubmissions();
     }
+    setGradingSubmitting(false);
   };
 
   const handleGenerateCertificate = async (course: Course) => {
     setGeneratingCert(true);
     setCertError(null);
 
-    try {
-      const res = await fetch('/api/lms/certificates/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          studentEmail: user?.email || 'alex.rivera@nexusai.com',
-          studentName: user?.name || 'Alex Rivera',
-          courseId: course.id,
-          courseTitle: course.title,
-          instructorName: course.instructor.name
-        })
-      });
+    const res = await safeFetchJson('/api/lms/certificates/generate', {
+      method: 'POST',
+      body: JSON.stringify({
+        studentEmail: user?.email || 'alex.rivera@nexusai.com',
+        studentName: user?.name || 'Alex Rivera',
+        courseId: course.id,
+        courseTitle: course.title,
+        instructorName: course.instructor.name
+      })
+    });
 
-      const data = await res.json();
-      if (!res.ok) {
-        setCertError(data.error || 'Failed to generate certificate.');
-      } else {
-        fetchCertificates();
-        setSelectedCertificate(data.certificate);
-        confetti({ particleCount: 100, spread: 70 });
-      }
-    } catch (e: any) {
-      setCertError(e.message || 'Error generating certificate.');
-    } finally {
-      setGeneratingCert(false);
+    if (!res.success) {
+      setCertError(res.error || 'Failed to generate certificate.');
+    } else if (res.data?.certificate) {
+      fetchCertificates();
+      setSelectedCertificate(res.data.certificate);
+      confetti({ particleCount: 100, spread: 70 });
     }
+    setGeneratingCert(false);
   };
 
   const handleDispatchAnnouncement = async (e: React.FormEvent) => {
@@ -344,28 +284,22 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     if (!newAncTitle || !newAncMessage) return;
     setDispatchingAnc(true);
 
-    try {
-      const res = await fetch('/api/lms/announcements', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: newAncTitle,
-          message: newAncMessage,
-          postedBy: user?.name || 'Dr. Evelyn Sterling',
-          targetCohort: 'Cohort 2026'
-        })
-      });
+    const res = await safeFetchJson('/api/lms/announcements', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: newAncTitle,
+        message: newAncMessage,
+        postedBy: user?.name || 'Dr. Evelyn Sterling',
+        targetCohort: 'Cohort 2026'
+      })
+    });
 
-      if (res.ok) {
-        setNewAncTitle('');
-        setNewAncMessage('');
-        fetchAnnouncements();
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setDispatchingAnc(false);
+    if (res.success) {
+      setNewAncTitle('');
+      setNewAncMessage('');
+      fetchAnnouncements();
     }
+    setDispatchingAnc(false);
   };
 
   return (
@@ -473,7 +407,10 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {enrolledCourses.map((c) => {
-                const prog = courseProgress[c.id] || { progressPercentage: c.id === 'web-development' ? 100 : 78, completedLessonIds: [] };
+                const backendProg = courseProgress[c.id];
+                const realProgress = backendProg ? backendProg.progressPercentage : (c.id === 'web-development' ? 100 : 78);
+                const isSampleData = !backendProg;
+
                 return (
                   <div
                     key={c.id}
@@ -481,8 +418,11 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                   >
                     <div className="space-y-3">
                       <div className="flex items-center justify-between text-xs text-slate-400">
-                        <span className="text-cyan-400 font-semibold">{c.category}</span>
-                        <span className="font-mono text-emerald-400 font-bold">{prog.progressPercentage}% Completed</span>
+                        <span className="text-cyan-400 font-semibold flex items-center gap-1.5">
+                          {c.category}
+                          {isSampleData && <span className="text-[10px] text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/30">Sample Cohort Data</span>}
+                        </span>
+                        <span className="font-mono text-emerald-400 font-bold">{realProgress}% Completed</span>
                       </div>
 
                       <h3 className="text-lg font-bold text-white leading-snug">{c.title}</h3>
@@ -492,7 +432,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                       <div className="w-full bg-[#10172F] rounded-full h-2 overflow-hidden border border-white/10">
                         <div
                           className="bg-gradient-to-r from-blue-600 to-cyan-400 h-full transition-all duration-500"
-                          style={{ width: `${prog.progressPercentage}%` }}
+                          style={{ width: `${realProgress}%` }}
                         />
                       </div>
                     </div>
@@ -513,7 +453,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                         </button>
                       </div>
 
-                      {prog.progressPercentage >= 100 ? (
+                      {realProgress >= 100 ? (
                         <button
                           onClick={() => handleGenerateCertificate(c)}
                           disabled={generatingCert}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PageRoute, SupportTicket, TicketCategory, TicketPriority } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { safeFetchJson } from '../utils/api';
 import {
   MessageSquare,
   Send,
@@ -52,18 +53,12 @@ export const SupportCenterPage: React.FC<SupportCenterPageProps> = ({ onNavigate
 
   const fetchUserTickets = async () => {
     setLoading(true);
-    try {
-      const email = user?.email || 'alex.rivera@nexusai.com';
-      const res = await fetch(`/api/tickets?email=${encodeURIComponent(email)}&role=${user?.role || 'student'}`);
-      if (res.ok) {
-        const data = await res.json();
-        setTickets(data.tickets || []);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
+    const email = user?.email || 'alex.rivera@nexusai.com';
+    const res = await safeFetchJson(`/api/tickets?email=${encodeURIComponent(email)}&role=${user?.role || 'student'}`);
+    if (res.success && res.data) {
+      setTickets(res.data.tickets || []);
     }
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -77,85 +72,66 @@ export const SupportCenterPage: React.FC<SupportCenterPageProps> = ({ onNavigate
     if (!formData.name || !formData.email || !formData.subject || !formData.description) return;
 
     setSubmitting(true);
-    try {
-      const res = await fetch('/api/tickets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerName: formData.name,
-          customerEmail: formData.email,
-          category: formData.category,
-          priority: formData.priority,
-          subject: formData.subject,
-          description: formData.description,
-        }),
-      });
+    const res = await safeFetchJson('/api/tickets', {
+      method: 'POST',
+      body: JSON.stringify({
+        customerName: formData.name,
+        customerEmail: formData.email,
+        category: formData.category,
+        priority: formData.priority,
+        subject: formData.subject,
+        description: formData.description,
+      }),
+    });
 
-      if (res.ok) {
-        const data = await res.json();
-        setSubmittedTicket(data.ticket);
-        setFormData({
-          name: user?.name || 'Alex Rivera',
-          email: user?.email || 'alex.rivera@nexusai.com',
-          category: 'Technical Support',
-          priority: 'P3 (Normal)',
-          subject: '',
-          description: '',
-        });
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setSubmitting(false);
+    if (res.success && res.data) {
+      setSubmittedTicket(res.data.ticket);
+      setFormData({
+        name: user?.name || 'Alex Rivera',
+        email: user?.email || 'alex.rivera@nexusai.com',
+        category: 'Technical Support',
+        priority: 'P3 (Normal)',
+        subject: '',
+        description: '',
+      });
     }
+    setSubmitting(false);
   };
 
   const handlePostReply = async (ticketId: string) => {
     if (!replyMessage.trim()) return;
     setSendingReply(true);
 
-    try {
-      const res = await fetch(`/api/tickets/${ticketId}/replies`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          senderName: user?.name || 'Alex Rivera',
-          senderEmail: user?.email || 'alex.rivera@nexusai.com',
-          senderRole: 'customer',
-          message: replyMessage,
-        }),
-      });
+    const res = await safeFetchJson(`/api/tickets/${ticketId}/replies`, {
+      method: 'POST',
+      body: JSON.stringify({
+        senderName: user?.name || 'Alex Rivera',
+        senderEmail: user?.email || 'alex.rivera@nexusai.com',
+        senderRole: 'customer',
+        message: replyMessage,
+      }),
+    });
 
-      if (res.ok) {
-        setReplyMessage('');
-        // Refresh ticket
-        const resTicket = await fetch(`/api/tickets/${ticketId}?role=${user?.role || 'student'}`);
-        if (resTicket.ok) {
-          const data = await resTicket.json();
-          setSelectedTicket(data.ticket);
-        }
-        fetchUserTickets();
+    if (res.success) {
+      setReplyMessage('');
+      // Refresh ticket
+      const resTicket = await safeFetchJson(`/api/tickets/${ticketId}?role=${user?.role || 'student'}`);
+      if (resTicket.success && resTicket.data) {
+        setSelectedTicket(resTicket.data.ticket);
       }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setSendingReply(false);
+      fetchUserTickets();
     }
+    setSendingReply(false);
   };
 
   const handleCSATSubmit = async (ticketId: string) => {
-    try {
-      const res = await fetch(`/api/tickets/${ticketId}/feedback`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rating, feedback }),
-      });
-      if (res.ok) {
-        setCsatSubmitted(true);
-        fetchUserTickets();
-      }
-    } catch (e) {
-      console.error(e);
+    const res = await safeFetchJson(`/api/tickets/${ticketId}/feedback`, {
+      method: 'POST',
+      body: JSON.stringify({ rating, feedback }),
+    });
+    if (res.success) {
+      setCsatSubmitted(true);
+      fetchUserTickets();
     }
   };
 

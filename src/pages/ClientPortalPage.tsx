@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PageRoute, ClientProject, ProposalRecord, ClientRecord } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { safeFetchJson } from '../utils/api';
 import {
   Briefcase,
   Shield,
@@ -37,18 +38,12 @@ export const ClientPortalPage: React.FC<ClientPortalPageProps> = ({ onNavigate }
 
   const fetchClientPortalData = async () => {
     setLoading(true);
-    try {
-      const email = user?.email || 'elena@biomedx.org';
-      const res = await fetch(`/api/client-portal/dashboard?email=${encodeURIComponent(email)}`);
-      if (res.ok) {
-        const data = await res.json();
-        setClientData(data);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
+    const email = user?.email || 'elena@biomedx.org';
+    const res = await safeFetchJson(`/api/client-portal/dashboard?email=${encodeURIComponent(email)}`);
+    if (res.success && res.data) {
+      setClientData(res.data);
     }
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -57,38 +52,27 @@ export const ClientPortalPage: React.FC<ClientPortalPageProps> = ({ onNavigate }
 
   const handleRespondProposal = async (propId: string, status: 'Accepted' | 'Rejected') => {
     setProposalActioning(true);
-    try {
-      const res = await fetch(`/api/crm/proposals/${propId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status, clientFeedback: feedbackText })
-      });
-      if (res.ok) {
-        setFeedbackText('');
-        setSelectedProposal(null);
-        fetchClientPortalData();
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setProposalActioning(false);
+    const res = await safeFetchJson(`/api/crm/proposals/${propId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, clientFeedback: feedbackText })
+    });
+    if (res.success) {
+      setFeedbackText('');
+      setSelectedProposal(null);
+      fetchClientPortalData();
     }
+    setProposalActioning(false);
   };
 
   const handleSendProjectFeedback = async (projectId: string) => {
     if (!feedbackText.trim()) return;
-    try {
-      const res = await fetch(`/api/crm/projects/${projectId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientFeedback: feedbackText })
-      });
-      if (res.ok) {
-        setFeedbackText('');
-        fetchClientPortalData();
-      }
-    } catch (e) {
-      console.error(e);
+    const res = await safeFetchJson(`/api/crm/projects/${projectId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ clientFeedback: feedbackText })
+    });
+    if (res.success) {
+      setFeedbackText('');
+      fetchClientPortalData();
     }
   };
 

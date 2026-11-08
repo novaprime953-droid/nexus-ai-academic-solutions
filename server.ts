@@ -2189,23 +2189,40 @@ app.get('/api/certificates/verify/:certId', (req: Request, res: Response) => {
   res.json({ valid: true, certificate: cert });
 });
 
-// Generate Certificate (100% Completion Validation)
+// Generate Certificate (100% Completion + Assessment Validation)
 app.post('/api/lms/certificates/generate', (req: Request, res: Response) => {
   const { studentEmail, studentName, courseId, courseTitle, instructorName } = req.body;
 
   if (!studentEmail || !courseId) {
-    return res.status(400).json({ error: 'studentEmail and courseId are required.' });
+    return res.status(400).json({ success: false, error: 'studentEmail and courseId are required.' });
   }
 
-  // Validate completion progress
-  const prog = lmsProgressStore.find(p => p.studentEmail === studentEmail && p.courseId === courseId);
+  // 1. Validate real completion progress in lmsProgressStore
+  const prog = lmsProgressStore.find(
+    p => p.studentEmail.toLowerCase() === studentEmail.toLowerCase() && p.courseId === courseId
+  );
   if (!prog || prog.progressPercentage < 100) {
     return res.status(400).json({
+      success: false,
       error: `Course completion criteria not satisfied. Current progress is ${prog?.progressPercentage || 0}%. 100% lesson completion required.`
     });
   }
 
-  const existingCert = lmsCertificatesStore.find(c => c.studentEmail === studentEmail && c.courseId === courseId);
+  // 2. Validate passing score on course quiz assessment
+  const quizAttempt = lmsQuizAttemptsStore.find(
+    a => a.studentEmail.toLowerCase() === studentEmail.toLowerCase() && a.courseId === courseId && a.passed
+  );
+  if (!quizAttempt) {
+    return res.status(400).json({
+      success: false,
+      error: `Assessment requirement not satisfied: You must pass the required course assessment quiz before requesting a certificate.`
+    });
+  }
+
+  // 3. Prevent duplicate certificate issuance
+  const existingCert = lmsCertificatesStore.find(
+    c => c.studentEmail.toLowerCase() === studentEmail.toLowerCase() && c.courseId === courseId
+  );
   if (existingCert) {
     return res.json({ success: true, certificate: existingCert, message: 'Certificate already issued.' });
   }
@@ -2220,7 +2237,7 @@ app.post('/api/lms/certificates/generate', (req: Request, res: Response) => {
     courseTitle: courseTitle || 'Nexus Academy Course',
     instructorName: instructorName || 'Dr. Evelyn Sterling',
     issuedAt: new Date().toISOString(),
-    gradeScore: '100% Distinction',
+    gradeScore: `${quizAttempt.scorePercentage}% Distinction`,
     verificationUrl: `https://nexus-ai-academic-solutions.vercel.app/api/certificates/verify/${certId}`,
     status: 'Valid'
   };
@@ -2874,6 +2891,12 @@ Provide:
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Lead qualification analysis failed.' });
   }
+});
+
+// 404 Catch-All Handler for API Routes (prevents returning HTML for API calls)
+app.use('/api/*', (_req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.status(404).json({ success: false, error: 'API route not found in Nexus AI Engine.' });
 });
 
 async function startServer() {

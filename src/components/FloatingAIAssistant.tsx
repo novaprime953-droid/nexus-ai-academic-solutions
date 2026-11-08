@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bot, X, Send, Sparkles, Minimize2, Maximize2, Copy, Check, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { safeFetchJson } from '../utils/api';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -36,29 +37,20 @@ export const FloatingAIAssistant: React.FC = () => {
     setMessages(newMessages);
     setLoading(true);
 
-    try {
-      const res = await fetch('/api/gemini/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setMessages([...newMessages, { role: 'assistant', content: data.reply }]);
-      } else {
-        setMessages([
-          ...newMessages,
-          { role: 'assistant', content: data.error || 'API error occurred.' },
-        ]);
-      }
-    } catch (err) {
+    const res = await safeFetchJson('/api/gemini/chat', {
+      method: 'POST',
+      body: JSON.stringify({ messages: newMessages }),
+    });
+
+    if (res.success && res.data) {
+      setMessages([...newMessages, { role: 'assistant', content: res.data.reply || res.data.answer || 'Response generated.' }]);
+    } else {
       setMessages([
         ...newMessages,
-        { role: 'assistant', content: 'Failed to connect to Nexus AI Engine. Please check server status and GEMINI_API_KEY.' },
+        { role: 'assistant', content: res.error || 'Failed to connect to Nexus AI Engine. Please check server status and GEMINI_API_KEY.' },
       ]);
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   const copyMessage = (text: string, idx: number) => {
