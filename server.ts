@@ -3326,6 +3326,113 @@ app.post('/api/auth/sync-profile', (req: Request, res: Response) => {
   res.json({ success: true, profile: existingUser });
 });
 
+// Update Profile Settings Endpoint
+app.patch('/api/auth/profile', (req: Request, res: Response) => {
+  const { email, name, avatar, phone } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required.' });
+
+  const targetUser = systemUsersStore.find(u => u.email.toLowerCase() === email.toLowerCase().trim());
+  if (!targetUser) return res.status(404).json({ error: 'User profile not found.' });
+
+  if (name) targetUser.name = name;
+  if (avatar) targetUser.avatar = avatar;
+
+  res.json({ success: true, profile: targetUser });
+});
+
+// ----------------------------------------------------
+// INSTRUCTOR APPLICATIONS BACKEND
+// ----------------------------------------------------
+interface InstructorApplicationRecord {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  expertiseArea: string;
+  yearsOfExperience: string;
+  portfolioUrl?: string;
+  bio: string;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  appliedAt: string;
+  reviewedAt?: string;
+  adminNotes?: string;
+}
+
+const instructorApplicationsStore: InstructorApplicationRecord[] = [
+  {
+    id: 'inst-app-101',
+    fullName: 'Dr. Evelyn Sterling',
+    email: 'evelyn@nexusai.com',
+    phone: '+1 555 019 2831',
+    expertiseArea: 'Artificial Intelligence & Neural Networks',
+    yearsOfExperience: '10+ Years',
+    bio: 'Former AI Research Fellow with 12 published papers in generative modeling.',
+    status: 'Approved',
+    appliedAt: new Date(Date.now() - 86400000 * 60).toISOString(),
+    reviewedAt: new Date(Date.now() - 86400000 * 58).toISOString(),
+    adminNotes: 'Verified credentials. Approved for Lead Instructor role.'
+  }
+];
+
+app.post('/api/instructor/apply', (req: Request, res: Response) => {
+  const { fullName, email, phone, expertiseArea, yearsOfExperience, portfolioUrl, bio } = req.body;
+
+  if (!fullName || !email || !expertiseArea) {
+    return res.status(400).json({ error: 'Full name, email, and expertise area are required.' });
+  }
+
+  const newApp: InstructorApplicationRecord = {
+    id: `inst-app-${Date.now().toString().slice(-4)}`,
+    fullName,
+    email: email.toLowerCase().trim(),
+    phone: phone || '',
+    expertiseArea,
+    yearsOfExperience: yearsOfExperience || '1-3 Years',
+    portfolioUrl,
+    bio: bio || '',
+    status: 'Pending',
+    appliedAt: new Date().toISOString()
+  };
+
+  instructorApplicationsStore.unshift(newApp);
+  res.status(201).json({ success: true, application: newApp });
+});
+
+app.get('/api/admin/instructor-applications', requireAdminAuth, (_req: Request, res: Response) => {
+  res.json({ applications: instructorApplicationsStore });
+});
+
+app.patch('/api/admin/instructor-applications/:id', requireAdminAuth, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { status, adminNotes } = req.body;
+
+  const appRecord = instructorApplicationsStore.find(a => a.id === id);
+  if (!appRecord) return res.status(404).json({ error: 'Application not found.' });
+
+  if (status) appRecord.status = status;
+  if (adminNotes) appRecord.adminNotes = adminNotes;
+  appRecord.reviewedAt = new Date().toISOString();
+
+  // If approved, update user role to Instructor in systemUsersStore
+  if (status === 'Approved') {
+    let usr = systemUsersStore.find(u => u.email.toLowerCase() === appRecord.email.toLowerCase());
+    if (usr) {
+      usr.role = 'Instructor';
+    } else {
+      systemUsersStore.push({
+        id: `usr-inst-${Date.now().toString().slice(-4)}`,
+        name: appRecord.fullName,
+        email: appRecord.email,
+        role: 'Instructor',
+        status: 'Active',
+        createdAt: new Date().toISOString()
+      });
+    }
+  }
+
+  res.json({ success: true, application: appRecord });
+});
+
 // ----------------------------------------------------
 // SECURE ADMIN AUTHENTICATION & SESSION MANAGEMENT
 // ----------------------------------------------------

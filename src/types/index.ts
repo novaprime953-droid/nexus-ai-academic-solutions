@@ -37,7 +37,10 @@ export type PageRoute =
   | 'gnrc-admissions'
   | 'gnrc-student-portal'
   | 'gnrc-instructors'
-  | 'gnrc-contact';
+  | 'gnrc-contact'
+  | 'instructor-apply'
+  | 'account-settings'
+  | 'instructor-dashboard';
 
 export interface User {
   id: string;
@@ -630,6 +633,22 @@ export interface GNRCPhysicalAttendanceRecord {
   attendancePercentage: number;
   lastAttendedDate: string;
 }
+
+export interface InstructorApplication {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  expertiseArea: string;
+  yearsOfExperience: string;
+  portfolioUrl?: string;
+  bio: string;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  appliedAt: string;
+  reviewedAt?: string;
+  adminNotes?: string;
+}
+
 
 
 

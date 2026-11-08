@@ -38,6 +38,8 @@ import { KnowledgeAdminPage } from './pages/KnowledgeAdminPage';
 import { KnowledgeIntelligenceCenterPage } from './pages/KnowledgeIntelligenceCenterPage';
 import { GNRCPage } from './pages/GNRCPage';
 import { GNRCApplyPage } from './pages/GNRCApplyPage';
+import { InstructorApplyPage } from './pages/InstructorApplyPage';
+import { AccountSettingsPage } from './pages/AccountSettingsPage';
 import { AdminLoginPage } from './pages/AdminLoginPage';
 import { safeFetchJson } from './utils/api';
 import { GlobalSearchModal } from './components/GlobalSearchModal';
@@ -67,6 +69,8 @@ const getInitialRoute = (): PageRoute => {
     if (path === 'about') return 'about';
     if (path === 'contact') return 'contact';
     if (path === 'blog') return 'blog';
+    if (path === 'instructor-apply' || path === 'apply-instructor') return 'instructor-apply';
+    if (path === 'account-settings' || path === 'settings') return 'account-settings';
     if (path === 'login') return 'login';
     if (path === 'register') return 'register';
   }
@@ -369,6 +373,14 @@ export default function App() {
 
               {currentPage === 'gnrc-student-portal' && (
                 <StudentDashboard onNavigate={handleNavigate} onSelectCourse={handleSelectCourse} />
+              )}
+
+              {currentPage === 'instructor-apply' && (
+                <InstructorApplyPage onNavigate={handleNavigate} />
+              )}
+
+              {currentPage === 'account-settings' && (
+                <AccountSettingsPage onNavigate={handleNavigate} />
               )}
 
               {currentPage === 'login' && (

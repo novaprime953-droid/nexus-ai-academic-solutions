@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { PageRoute } from '../types';
-import { Cpu, ArrowRight, UserCheck, ShieldCheck } from 'lucide-react';
+import { Cpu, ArrowRight, Eye, EyeOff, Loader2, AlertCircle, CheckCircle2, UserCheck, Briefcase } from 'lucide-react';
 import { CardTilt } from '../components/CardTilt';
 import { ScrollReveal } from '../components/ScrollReveal';
 
@@ -11,186 +11,294 @@ interface AuthPagesProps {
 }
 
 export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
-  const { login, switchRole } = useAuth();
-  const [email, setEmail] = useState('student@nexusai.com');
-  const [password, setPassword] = useState('••••••••••••');
-  const [role, setRole] = useState<'student' | 'teacher' | 'admin'>('student');
+  const { loginWithFirebase, registerWithFirebase, resetPassword, switchRole } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [accountType, setAccountType] = useState<'student' | 'client'>('student');
+  const [showPassword, setShowPassword] = useState(false);
+
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [isForgotPass, setIsForgotPass] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    login(email, role);
-    if (role === 'admin') {
-      onNavigate('admin');
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    if (isForgotPass) {
+      if (!email) {
+        setErrorMsg('Please enter your email address to reset password.');
+        return;
+      }
+      setLoading(true);
+      const res = await resetPassword(email);
+      if (res.success) {
+        setSuccessMsg(`Password reset link sent to ${email}. Check your inbox.`);
+      } else {
+        setErrorMsg(res.error || 'Failed to send password reset email.');
+      }
+      setLoading(false);
+      return;
+    }
+
+    if (mode === 'register') {
+      if (!fullName.trim() || !email.trim() || !password) {
+        setErrorMsg('Please fill in all required fields.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setErrorMsg('Passwords do not match.');
+        return;
+      }
+      if (password.length < 6) {
+        setErrorMsg('Password must be at least 6 characters.');
+        return;
+      }
+
+      setLoading(true);
+      const res = await registerWithFirebase(email, password, fullName, accountType);
+      if (res.success) {
+        setSuccessMsg('Account created successfully! Verification email sent. Redirecting...');
+        setTimeout(() => {
+          if (accountType === 'client') onNavigate('client-portal');
+          else onNavigate('student-dashboard');
+        }, 1200);
+      } else {
+        setErrorMsg(res.error || 'Registration failed.');
+      }
+      setLoading(false);
     } else {
-      onNavigate('student-dashboard');
+      if (!email || !password) {
+        setErrorMsg('Email and password are required.');
+        return;
+      }
+
+      setLoading(true);
+      const res = await loginWithFirebase(email, password);
+      if (res.success) {
+        setSuccessMsg('Authentication successful! Redirecting...');
+        setTimeout(() => {
+          onNavigate('student-dashboard');
+        }, 800);
+      } else {
+        setErrorMsg(res.error || 'Invalid credentials or account suspended.');
+      }
+      setLoading(false);
     }
   };
 
-  const handleQuickDemo = (demoRole: 'student' | 'teacher' | 'admin') => {
+  const handleQuickDemo = (demoRole: 'student' | 'teacher') => {
     switchRole(demoRole);
-    if (demoRole === 'admin') {
-      onNavigate('admin');
-    } else {
-      onNavigate('student-dashboard');
-    }
-  };
-
-  const handleGoogleAuth = () => {
-    login('google.user@nexusai.com', 'student');
-    onNavigate('student-dashboard');
+    if (demoRole === 'teacher') onNavigate('student-dashboard');
+    else onNavigate('student-dashboard');
   };
 
   return (
-    <div className="min-h-screen bg-[#101A3B]/60 text-white flex items-center justify-center py-16 px-4 sm:px-6 lg:px-8 relative">
+    <div className="min-h-screen bg-[#101A3B]/60 text-white flex items-center justify-center py-16 px-4 sm:px-6 lg:px-8 relative selection:bg-cyan-400 selection:text-slate-900">
       <ScrollReveal className="max-w-md w-full">
-        <CardTilt className="w-full space-y-7 glass-panel p-8 sm:p-10 rounded-3xl border border-[#4263FF]/30 shadow-2xl bg-gradient-to-b from-[#172554]/70 to-[#101A3B]/90">
+        <CardTilt className="w-full space-y-6 glass-panel p-8 sm:p-10 rounded-3xl border border-[#4263FF]/30 shadow-2xl bg-gradient-to-b from-[#172554]/70 to-[#101A3B]/90 text-xs">
+
           <div className="text-center space-y-2">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 flex items-center justify-center mx-auto shadow-lg shadow-blue-500/25">
               <Cpu className="w-6 h-6 text-white" />
             </div>
             <h1 className="text-2xl font-extrabold tracking-tight text-white pt-2">
-              {mode === 'login' ? 'Sign In to Nexus Portal' : 'Create Student Account'}
+              {isForgotPass ? 'Reset Password' : mode === 'login' ? 'Sign In to Nexus' : 'Create Account'}
             </h1>
             <p className="text-xs text-slate-300">
-              {mode === 'login'
-                ? 'Access enrolled courses, certificates, and laboratory sandboxes.'
-                : 'Join over 12,000 engineers and leaders across the globe.'}
+              {isForgotPass
+                ? 'Enter your registered email to receive a password recovery link.'
+                : mode === 'login'
+                ? 'Access your enrolled courses, projects, and certificates.'
+                : 'Join Nexus AI platform for Student & Client services.'}
             </p>
           </div>
 
           {/* Quick Demo Access Switcher */}
-          <div className="p-3.5 bg-[#172554] border border-[#4263FF]/30 rounded-xl space-y-2 text-xs">
-            <span className="text-[11px] font-semibold text-cyan-400 block uppercase tracking-wider">
-              Instant Demo Role Access:
+          <div className="p-3 bg-[#172554] border border-[#4263FF]/30 rounded-xl space-y-1.5 text-xs">
+            <span className="text-[10px] font-semibold text-cyan-400 block uppercase tracking-wider">
+              Instant Demo Access:
             </span>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => handleQuickDemo('student')}
-                className="py-1.5 px-2 bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/40 rounded-lg text-blue-200 text-center font-medium transition-colors"
+                className="py-1.5 px-2 bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/40 rounded-lg text-blue-200 text-center font-medium transition-colors text-[11px]"
               >
-                Student
+                Student Demo
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickDemo('teacher')}
-                className="py-1.5 px-2 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 rounded-lg text-purple-200 text-center font-medium transition-colors"
+                onClick={() => onNavigate('client-portal')}
+                className="py-1.5 px-2 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 rounded-lg text-purple-200 text-center font-medium transition-colors text-[11px]"
               >
-                Teacher
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickDemo('admin')}
-                className="py-1.5 px-2 bg-cyan-600/30 hover:bg-cyan-600/50 border border-cyan-500/40 rounded-lg text-cyan-200 text-center font-medium transition-colors"
-              >
-                Admin
+                Client Portal Demo
               </button>
             </div>
           </div>
 
-          {/* Google Auth Button */}
-          <button
-            type="button"
-            onClick={handleGoogleAuth}
-            className="w-full py-2.5 px-4 bg-white/5 hover:bg-white/10 border border-white/15 rounded-xl text-xs font-semibold text-slate-200 flex items-center justify-center gap-2.5 transition-colors"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24">
-              <path
-                fill="#4285F4"
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-              />
-            </svg>
-            <span>Continue with Google</span>
-          </button>
+          {errorMsg && (
+            <div className="p-3 rounded-xl bg-red-950/50 border border-red-500/40 text-red-300 text-[11px] flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" /> {errorMsg}
+            </div>
+          )}
 
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-white/10" />
-            <span className="text-[11px] text-slate-400">or with email credentials</span>
-            <div className="flex-1 h-px bg-white/10" />
-          </div>
+          {successMsg && (
+            <div className="p-3 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 text-[11px] flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0" /> {successMsg}
+            </div>
+          )}
 
-          <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+          <form onSubmit={handleSubmit} className="space-y-4">
+
+            {mode === 'register' && !isForgotPass && (
+              <>
+                <div>
+                  <label className="block text-slate-300 mb-1 font-medium">Select Account Type</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAccountType('student')}
+                      className={`py-2 px-3 rounded-xl border font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                        accountType === 'student' ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300' : 'bg-[#10172F] border-white/10 text-slate-400'
+                      }`}
+                    >
+                      <UserCheck className="w-3.5 h-3.5" /> Student
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAccountType('client')}
+                      className={`py-2 px-3 rounded-xl border font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                        accountType === 'client' ? 'bg-purple-500/20 border-purple-400 text-purple-300' : 'bg-[#10172F] border-white/10 text-slate-400'
+                      }`}
+                    >
+                      <Briefcase className="w-3.5 h-3.5" /> Client
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 mb-1 font-medium">Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Alex Rivera"
+                    className="w-full px-3 py-2.5 bg-[#172554] border border-[#4263FF]/30 rounded-xl text-white focus:outline-none focus:border-cyan-400"
+                  />
+                </div>
+              </>
+            )}
+
             <div>
-              <label className="block text-slate-300 mb-1 font-medium">Email Address</label>
+              <label className="block text-slate-300 mb-1 font-medium">Email Address *</label>
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2.5 bg-[#172554] border border-[#4263FF]/30 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400"
+                placeholder="alex.rivera@nexusai.com"
+                className="w-full px-3 py-2.5 bg-[#172554] border border-[#4263FF]/30 rounded-xl text-white focus:outline-none focus:border-cyan-400 font-mono text-[11px]"
               />
             </div>
 
-            <div>
-              <label className="block text-slate-300 mb-1 font-medium">Password</label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2.5 bg-[#172554] border border-[#4263FF]/30 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400"
-              />
-            </div>
-
-            {mode === 'register' && (
+            {!isForgotPass && (
               <div>
-                <label className="block text-slate-300 mb-1 font-medium">Select Desired Role</label>
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as any)}
-                  className="w-full px-3 py-2.5 bg-[#172554] border border-[#4263FF]/30 rounded-xl text-white focus:outline-none focus:border-cyan-400"
+                <label className="block text-slate-300 mb-1 font-medium">Password *</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    className="w-full px-3 py-2.5 bg-[#172554] border border-[#4263FF]/30 rounded-xl text-white focus:outline-none focus:border-cyan-400 font-mono pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="text-slate-400 hover:text-white absolute right-3 top-3"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {mode === 'register' && !isForgotPass && (
+              <div>
+                <label className="block text-slate-300 mb-1 font-medium">Confirm Password *</label>
+                <input
+                  type="password"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  className="w-full px-3 py-2.5 bg-[#172554] border border-[#4263FF]/30 rounded-xl text-white focus:outline-none focus:border-cyan-400 font-mono"
+                />
+              </div>
+            )}
+
+            {mode === 'login' && !isForgotPass && (
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => setIsForgotPass(true)}
+                  className="text-cyan-400 text-[11px] hover:underline"
                 >
-                  <option value="student">Student / Learner</option>
-                  <option value="teacher">Instructor / Mentor</option>
-                  <option value="admin">Administrator</option>
-                </select>
+                  Forgot password?
+                </button>
               </div>
             )}
 
             <button
               type="submit"
-              className="w-full py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 hover:from-blue-500 text-white rounded-xl font-semibold flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25 transition-all mt-4"
+              disabled={loading}
+              className="w-full py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 hover:from-blue-500 text-white rounded-xl font-semibold flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25 transition-all mt-2 disabled:opacity-50"
             >
-              <span>{mode === 'login' ? 'Sign In to Dashboard' : 'Complete Registration'}</span>
-              <ArrowRight className="w-4 h-4" />
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+              <span>
+                {isForgotPass ? 'Send Reset Link' : mode === 'login' ? 'Sign In to Portal' : 'Create Account'}
+              </span>
             </button>
           </form>
 
-          <div className="text-center text-xs text-slate-400 pt-2 border-t border-white/8">
-            {mode === 'login' ? (
-              <p>
-                Do not have an account?{' '}
-                <button
-                  onClick={() => onNavigate('register')}
-                  className="text-cyan-400 font-semibold hover:underline"
-                >
-                  Register as Student
-                </button>
-              </p>
+          <div className="text-center text-[11px] text-slate-400 pt-3 border-t border-white/10 space-y-2">
+            {isForgotPass ? (
+              <button onClick={() => setIsForgotPass(false)} className="text-cyan-400 font-semibold hover:underline">
+                Back to Sign In
+              </button>
+            ) : mode === 'login' ? (
+              <div className="space-y-1">
+                <p>
+                  Do not have an account?{' '}
+                  <button onClick={() => onNavigate('register')} className="text-cyan-400 font-semibold hover:underline">
+                    Register as Student or Client
+                  </button>
+                </p>
+                <p>
+                  Want to teach at Nexus AI?{' '}
+                  <button onClick={() => onNavigate('instructor-apply')} className="text-purple-400 font-semibold hover:underline">
+                    Apply as Instructor
+                  </button>
+                </p>
+              </div>
             ) : (
               <p>
                 Already registered?{' '}
-                <button
-                  onClick={() => onNavigate('login')}
-                  className="text-cyan-400 font-semibold hover:underline"
-                >
+                <button onClick={() => onNavigate('login')} className="text-cyan-400 font-semibold hover:underline">
                   Sign In
                 </button>
               </p>
             )}
           </div>
+
         </CardTilt>
       </ScrollReveal>
     </div>
