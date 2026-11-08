@@ -153,14 +153,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, onOpenS
           </div>
 
           {/* Magnetic Primary CTA Button */}
-          {user?.role === 'admin' ? (
-            <MagneticButton
-              onClick={() => handleNavClick('admin-dashboard')}
-              className="px-4 py-2 text-xs font-semibold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 rounded-lg shadow-sm shadow-purple-500/25 whitespace-nowrap"
-            >
-              Admin Dashboard
-            </MagneticButton>
-          ) : user ? (
+          {user ? (
             <MagneticButton
               onClick={() => handleNavClick('student-dashboard')}
               className="px-4 py-2 text-xs font-semibold text-white bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 rounded-lg shadow-sm shadow-blue-500/25 whitespace-nowrap"
@@ -229,34 +222,12 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, onOpenS
 
             <div className="pt-4 border-t border-white/10 flex flex-col gap-2.5">
               <div className="text-xs text-slate-400">Current Role: {user?.role || 'Guest'}</div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    switchRole('student');
-                    setMobileMenuOpen(false);
-                  }}
-                  className="flex-1 py-1.5 text-xs bg-white/5 border border-white/10 rounded-lg text-slate-300"
-                >
-                  Student
-                </button>
-                <button
-                  onClick={() => {
-                    switchRole('admin');
-                    setMobileMenuOpen(false);
-                  }}
-                  className="flex-1 py-1.5 text-xs bg-white/5 border border-white/10 rounded-lg text-slate-300"
-                >
-                  Admin
-                </button>
-              </div>
               {user ? (
                 <button
-                  onClick={() =>
-                    handleNavClick(user.role === 'admin' ? 'admin-dashboard' : 'student-dashboard')
-                  }
+                  onClick={() => handleNavClick('student-dashboard')}
                   className="w-full py-2.5 text-xs font-semibold text-white bg-blue-600 rounded-lg text-center"
                 >
-                  Open {user.role === 'admin' ? 'Admin Dashboard' : 'Student Dashboard'}
+                  Open Student Portal
                 </button>
               ) : (
                 <button

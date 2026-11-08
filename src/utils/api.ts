@@ -11,9 +11,15 @@ export async function safeFetchJson<T = any>(
   options?: RequestInit
 ): Promise<ApiResponse<T>> {
   try {
+    const adminToken = typeof window !== 'undefined' ? localStorage.getItem('nexus_admin_token') : null;
     const defaultHeaders: Record<string, string> = {
       'Accept': 'application/json',
     };
+
+    if (adminToken) {
+      defaultHeaders['Authorization'] = `Bearer ${adminToken}`;
+      defaultHeaders['x-admin-token'] = adminToken;
+    }
 
     if (options?.body) {
       defaultHeaders['Content-Type'] = 'application/json';

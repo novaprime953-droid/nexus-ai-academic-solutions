@@ -38,6 +38,8 @@ import { KnowledgeAdminPage } from './pages/KnowledgeAdminPage';
 import { KnowledgeIntelligenceCenterPage } from './pages/KnowledgeIntelligenceCenterPage';
 import { GNRCPage } from './pages/GNRCPage';
 import { GNRCApplyPage } from './pages/GNRCApplyPage';
+import { AdminLoginPage } from './pages/AdminLoginPage';
+import { safeFetchJson } from './utils/api';
 import { GlobalSearchModal } from './components/GlobalSearchModal';
 import { FloatingAIAssistant } from './components/FloatingAIAssistant';
 import { COURSES, SERVICES, AI_TOOLS } from './data/mockData';
@@ -51,6 +53,54 @@ export default function App() {
   const [selectedService, setSelectedService] = useState<Service>(SERVICES[0]);
   const [selectedTool, setSelectedTool] = useState<AIToolItem>(AI_TOOLS[0]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // Private Admin Session State
+  const [adminToken, setAdminToken] = useState<string | null>(localStorage.getItem('nexus_admin_token'));
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
+  const [checkingAdminSession, setCheckingAdminSession] = useState<boolean>(false);
+
+  const verifyAdminSession = async (tokenToCheck?: string) => {
+    const token = tokenToCheck || localStorage.getItem('nexus_admin_token');
+    if (!token) {
+      setIsAdminAuthenticated(false);
+      return;
+    }
+
+    setCheckingAdminSession(true);
+    const res = await safeFetchJson('/api/admin/auth/session', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (res.success && res.data?.authenticated) {
+      setIsAdminAuthenticated(true);
+      setAdminToken(token);
+    } else {
+      localStorage.removeItem('nexus_admin_token');
+      setIsAdminAuthenticated(false);
+      setAdminToken(null);
+    }
+    setCheckingAdminSession(false);
+  };
+
+  React.useEffect(() => {
+    if (currentPage === 'admin' || (currentPage as string) === 'admin-dashboard') {
+      verifyAdminSession();
+    }
+  }, [currentPage]);
+
+  const handleAdminLoginSuccess = (token: string) => {
+    localStorage.setItem('nexus_admin_token', token);
+    setAdminToken(token);
+    setIsAdminAuthenticated(true);
+    setCurrentPage('admin');
+  };
+
+  const handleAdminLogoutSuccess = () => {
+    localStorage.removeItem('nexus_admin_token');
+    setAdminToken(null);
+    setIsAdminAuthenticated(false);
+    setCurrentPage('admin');
+  };
 
   const handleNavigate = (page: PageRoute) => {
     setCurrentPage(page);
@@ -106,7 +156,7 @@ export default function App() {
       case 'terms':
         return 'about';
       case 'student-dashboard':
-      case 'admin-dashboard':
+      case 'admin':
       case 'knowledge-admin':
       case 'knowledge-intelligence':
         return 'dashboard';
@@ -255,8 +305,12 @@ export default function App() {
                 />
               )}
 
-              {currentPage === 'admin-dashboard' && (
-                <AdminDashboard onNavigate={handleNavigate} />
+              {((currentPage as string) === 'admin' || (currentPage as string) === 'admin-dashboard') && (
+                isAdminAuthenticated ? (
+                  <AdminDashboard onNavigate={handleNavigate} onLogout={handleAdminLogoutSuccess} />
+                ) : (
+                  <AdminLoginPage onLoginSuccess={handleAdminLoginSuccess} />
+                )
               )}
 
               {currentPage === 'knowledge-admin' && <KnowledgeAdminPage onNavigate={handleNavigate} />}

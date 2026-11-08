@@ -14,7 +14,7 @@ export type PageRoute =
   | 'login'
   | 'register'
   | 'student-dashboard'
-  | 'admin-dashboard'
+  | 'admin'
   | 'privacy'
   | 'terms'
   | 'ai-lab'

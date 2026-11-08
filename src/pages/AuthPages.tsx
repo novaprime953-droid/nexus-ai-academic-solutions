@@ -20,7 +20,7 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
     e.preventDefault();
     login(email, role);
     if (role === 'admin') {
-      onNavigate('admin-dashboard');
+      onNavigate('admin');
     } else {
       onNavigate('student-dashboard');
     }
@@ -29,7 +29,7 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
   const handleQuickDemo = (demoRole: 'student' | 'teacher' | 'admin') => {
     switchRole(demoRole);
     if (demoRole === 'admin') {
-      onNavigate('admin-dashboard');
+      onNavigate('admin');
     } else {
       onNavigate('student-dashboard');
     }

@@ -215,7 +215,7 @@ export const KnowledgeAdminPage: React.FC<KnowledgeAdminPageProps> = ({ onNaviga
 
           <div className="flex items-center gap-3">
             <button
-              onClick={() => onNavigate('admin-dashboard')}
+              onClick={() => onNavigate('admin')}
               className="px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-2 transition-colors"
             >
               Back to Command Console

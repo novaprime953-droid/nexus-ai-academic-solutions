@@ -4,6 +4,7 @@ dotenv.config();
 import express, { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 
@@ -3291,8 +3292,205 @@ const systemAuditLogsStore: SystemAuditLogRecord[] = [
   }
 ];
 
-// 1. Executive Command Center Aggregation API
-app.get('/api/admin/command-center', (_req: Request, res: Response) => {
+// ----------------------------------------------------
+// SECURE ADMIN AUTHENTICATION & SESSION MANAGEMENT
+// ----------------------------------------------------
+
+function hashPassword(password: string, salt: string): string {
+  return crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+}
+
+const adminSalt = process.env.ADMIN_SALT || 'nexus_ai_secure_salt_2026';
+const configuredAdminEmail = (process.env.ADMIN_EMAIL || 'admin@nexusai.com').toLowerCase().trim();
+const configuredAdminPassword = process.env.ADMIN_PASSWORD || 'NexusAI@2026#SecureAdmin';
+const configuredAdminHash = process.env.ADMIN_PASSWORD_HASH || hashPassword(configuredAdminPassword, adminSalt);
+
+interface AdminSessionRecord {
+  token: string;
+  email: string;
+  name: string;
+  role: string;
+  createdAt: string;
+  expiresAt: number;
+}
+
+const adminSessionsStore: Record<string, AdminSessionRecord> = {};
+const loginAttemptsStore: Record<string, { failedAttempts: number; lockoutUntil: number }> = {};
+
+// Express Middleware: Require Server-Side Validated Admin Session
+function requireAdminAuth(req: Request, res: Response, next: any) {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.substring(7)
+    : (req.headers['x-admin-token'] as string);
+
+  if (!token || !adminSessionsStore[token]) {
+    return res.status(401).json({
+      success: false,
+      error: 'Unauthorized: Valid Admin Session Required. Please log in at /admin.'
+    });
+  }
+
+  const session = adminSessionsStore[token];
+  if (Date.now() > session.expiresAt) {
+    delete adminSessionsStore[token];
+    return res.status(401).json({
+      success: false,
+      error: 'Admin session expired. Please re-authenticate at /admin.'
+    });
+  }
+
+  (req as any).adminSession = session;
+  next();
+}
+
+// 1. Admin Login API
+app.post('/api/admin/auth/login', (req: Request, res: Response) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ success: false, error: 'Email and password are required.' });
+  }
+
+  const cleanEmail = email.toLowerCase().trim();
+  const now = Date.now();
+
+  const attemptRecord = loginAttemptsStore[cleanEmail] || { failedAttempts: 0, lockoutUntil: 0 };
+  if (attemptRecord.lockoutUntil > now) {
+    const remainingMins = Math.ceil((attemptRecord.lockoutUntil - now) / 60000);
+    return res.status(429).json({
+      success: false,
+      error: `Too many failed login attempts. Account temporarily locked out. Please try again in ${remainingMins} minute(s).`
+    });
+  }
+
+  const inputHash = hashPassword(password, adminSalt);
+  const isValidAdmin = cleanEmail === configuredAdminEmail && inputHash === configuredAdminHash;
+
+  if (!isValidAdmin) {
+    attemptRecord.failedAttempts += 1;
+    if (attemptRecord.failedAttempts >= 5) {
+      attemptRecord.lockoutUntil = now + 15 * 60 * 1000;
+    }
+    loginAttemptsStore[cleanEmail] = attemptRecord;
+
+    systemAuditLogsStore.unshift({
+      id: `aud-${Date.now().toString().slice(-4)}`,
+      timestamp: new Date().toISOString(),
+      actorName: 'Unauthenticated Visitor',
+      actorEmail: cleanEmail,
+      action: 'Failed Admin Authentication',
+      targetEntity: '/admin/login',
+      outcome: 'Denied',
+      details: `Failed credentials attempt for email: ${cleanEmail}`
+    });
+
+    return res.status(401).json({ success: false, error: 'Invalid admin email or password.' });
+  }
+
+  delete loginAttemptsStore[cleanEmail];
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const session: AdminSessionRecord = {
+    token,
+    email: cleanEmail,
+    name: 'Marcus Thorne',
+    role: 'Owner',
+    createdAt: new Date().toISOString(),
+    expiresAt: now + 120 * 60 * 1000
+  };
+
+  adminSessionsStore[token] = session;
+
+  res.setHeader(
+    'Set-Cookie',
+    `nexus_admin_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=7200${
+      process.env.NODE_ENV === 'production' ? '; Secure' : ''
+    }`
+  );
+
+  systemAuditLogsStore.unshift({
+    id: `aud-${Date.now().toString().slice(-4)}`,
+    timestamp: new Date().toISOString(),
+    actorName: session.name,
+    actorEmail: session.email,
+    action: 'Successful Admin Login',
+    targetEntity: '/admin',
+    outcome: 'Success',
+    details: 'Admin authenticated successfully. Crypto token issued.'
+  });
+
+  res.json({
+    success: true,
+    token,
+    admin: {
+      name: session.name,
+      email: session.email,
+      role: session.role
+    }
+  });
+});
+
+// 2. Admin Session Status Check API
+app.get('/api/admin/auth/session', (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.substring(7)
+    : (req.headers['x-admin-token'] as string);
+
+  if (!token || !adminSessionsStore[token]) {
+    return res.status(401).json({ success: false, authenticated: false });
+  }
+
+  const session = adminSessionsStore[token];
+  if (Date.now() > session.expiresAt) {
+    delete adminSessionsStore[token];
+    return res.status(401).json({ success: false, authenticated: false, error: 'Session expired.' });
+  }
+
+  res.json({
+    success: true,
+    authenticated: true,
+    admin: {
+      name: session.name,
+      email: session.email,
+      role: session.role
+    }
+  });
+});
+
+// 3. Admin Logout API
+app.post('/api/admin/auth/logout', (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.substring(7)
+    : (req.headers['x-admin-token'] as string);
+
+  if (token && adminSessionsStore[token]) {
+    const session = adminSessionsStore[token];
+    systemAuditLogsStore.unshift({
+      id: `aud-${Date.now().toString().slice(-4)}`,
+      timestamp: new Date().toISOString(),
+      actorName: session.name,
+      actorEmail: session.email,
+      action: 'Admin Session Logout',
+      targetEntity: '/admin',
+      outcome: 'Success',
+      details: 'Session token invalidated.'
+    });
+
+    delete adminSessionsStore[token];
+  }
+
+  res.setHeader(
+    'Set-Cookie',
+    'nexus_admin_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'
+  );
+  res.json({ success: true, message: 'Logged out successfully.' });
+});
+
+// 1. Executive Command Center Aggregation API (Protected)
+app.get('/api/admin/command-center', requireAdminAuth, (_req: Request, res: Response) => {
   res.json({
     metrics: {
       registeredUsers: systemUsersStore.length,
@@ -3318,8 +3516,8 @@ app.get('/api/admin/command-center', (_req: Request, res: Response) => {
   });
 });
 
-// 2. Interactive Analytics API
-app.get('/api/admin/analytics', (req: Request, res: Response) => {
+// 2. Interactive Analytics API (Protected)
+app.get('/api/admin/analytics', requireAdminAuth, (req: Request, res: Response) => {
   const range = (req.query.range as string) || '30d';
 
   // Calculate real rates from database stores
@@ -3354,12 +3552,12 @@ app.get('/api/admin/analytics', (req: Request, res: Response) => {
   });
 });
 
-// 3. User Directory & Role Management API
-app.get('/api/admin/users', (_req: Request, res: Response) => {
+// 3. User Directory & Role Management API (Protected)
+app.get('/api/admin/users', requireAdminAuth, (_req: Request, res: Response) => {
   res.json({ users: systemUsersStore });
 });
 
-app.patch('/api/admin/users/:id', (req: Request, res: Response) => {
+app.patch('/api/admin/users/:id', requireAdminAuth, (req: Request, res: Response) => {
   const { id } = req.params;
   const { role, status, actorRole } = req.body;
 
@@ -3400,12 +3598,12 @@ app.patch('/api/admin/users/:id', (req: Request, res: Response) => {
   res.json({ success: true, user: target });
 });
 
-// 4. Centralized System Settings API
-app.get('/api/admin/settings', (_req: Request, res: Response) => {
+// 4. Centralized System Settings API (Protected)
+app.get('/api/admin/settings', requireAdminAuth, (_req: Request, res: Response) => {
   res.json({ settings: systemSettingsStore });
 });
 
-app.patch('/api/admin/settings', (req: Request, res: Response) => {
+app.patch('/api/admin/settings', requireAdminAuth, (req: Request, res: Response) => {
   const { category, updates } = req.body;
 
   if (category && systemSettingsStore[category as keyof typeof systemSettingsStore]) {
@@ -3426,8 +3624,8 @@ app.patch('/api/admin/settings', (req: Request, res: Response) => {
   res.json({ success: true, settings: systemSettingsStore });
 });
 
-// 5. System Health Monitoring API
-app.get('/api/admin/health', (_req: Request, res: Response) => {
+// 5. System Health Monitoring API (Protected)
+app.get('/api/admin/health', requireAdminAuth, (_req: Request, res: Response) => {
   res.json({
     status: 'Operational',
     timestamp: new Date().toISOString(),
@@ -3443,13 +3641,13 @@ app.get('/api/admin/health', (_req: Request, res: Response) => {
   });
 });
 
-// 6. Security Audit Logs API
-app.get('/api/admin/audit-logs', (_req: Request, res: Response) => {
+// 6. Security Audit Logs API (Protected)
+app.get('/api/admin/audit-logs', requireAdminAuth, (_req: Request, res: Response) => {
   res.json({ auditLogs: systemAuditLogsStore });
 });
 
-// 7. CSV Export API
-app.get('/api/admin/export/:type', (req: Request, res: Response) => {
+// 7. CSV Export API (Protected)
+app.get('/api/admin/export/:type', requireAdminAuth, (req: Request, res: Response) => {
   const { type } = req.params;
 
   let csvContent = '';

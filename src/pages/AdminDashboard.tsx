@@ -64,14 +64,16 @@ import {
   ToggleLeft,
   ToggleRight,
   GraduationCap,
-  Building
+  Building,
+  LogOut
 } from 'lucide-react';
 
 interface AdminDashboardProps {
   onNavigate: (page: PageRoute) => void;
+  onLogout?: () => void;
 }
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) => {
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, onLogout }) => {
   const { user } = useAuth();
   const [activeSection, setActiveSection] = useState<
     'overview' | 'gnrc' | 'users' | 'analytics' | 'settings' | 'health' | 'audit' | 'leads' | 'clients' | 'proposals' | 'projects' | 'tickets' | 'inquiries'
@@ -319,6 +321,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
     setIsPostingReply(false);
   };
 
+  const handleAdminLogout = async () => {
+    await safeFetchJson('/api/admin/auth/logout', { method: 'POST' });
+    localStorage.removeItem('nexus_admin_token');
+    if (onLogout) onLogout();
+    else onNavigate('admin');
+  };
+
   const filteredUsers = usersList.filter(u => {
     const matchesSearch = !userSearch || u.name.toLowerCase().includes(userSearch.toLowerCase()) || u.email.toLowerCase().includes(userSearch.toLowerCase());
     const matchesRole = userRoleFilter === 'All' || u.role === userRoleFilter;
@@ -370,6 +379,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             >
               <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
               <span>Refresh Metrics</span>
+            </button>
+            <button
+              onClick={handleAdminLogout}
+              className="px-3.5 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/40 text-red-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Logout Session</span>
             </button>
           </div>
         </div>
