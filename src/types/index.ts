@@ -346,4 +346,146 @@ export interface LessonProgress {
   lastAccessedAt: string;
 }
 
+// ----------------------------------------------------
+// SERVICES CRM & CLIENT PROJECT MANAGEMENT SYSTEM
+// ----------------------------------------------------
+export type LeadStatus =
+  | 'New'
+  | 'Contacted'
+  | 'Qualified'
+  | 'Proposal Sent'
+  | 'Negotiation'
+  | 'Converted'
+  | 'Lost';
+
+export type LeadPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
+
+export interface CRMLead {
+  id: string;
+  contactName: string;
+  companyName: string;
+  email: string;
+  phone?: string;
+  country?: string;
+  source: 'Website Inquiry' | 'Contact Form' | 'Referral' | 'LinkedIn' | 'Outreach';
+  status: LeadStatus;
+  priority: LeadPriority;
+  assignedSalesRep: string;
+  requiredService: string;
+  budgetRange: string;
+  timeline: string;
+  description: string;
+  internalNotes: string[];
+  followUpDate?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClientRecord {
+  id: string;
+  name: string;
+  companyName: string;
+  email: string;
+  phone?: string;
+  country?: string;
+  assignedAccountManager: string;
+  activeProjectIds: string[];
+  completedProjectIds: string[];
+  totalValueUSD: number;
+  status: 'Active' | 'On Hold' | 'Archived';
+  joinedAt: string;
+}
+
+export type ProposalStatus = 'Draft' | 'Sent' | 'Viewed' | 'Accepted' | 'Rejected' | 'Expired';
+
+export interface ProposalItem {
+  id: string;
+  serviceTitle: string;
+  description: string;
+  deliverables: string[];
+  estimatedDays: number;
+  priceUSD: number;
+}
+
+export interface ProposalRecord {
+  id: string;
+  leadId?: string;
+  clientId?: string;
+  clientName: string;
+  clientEmail: string;
+  companyName: string;
+  title: string;
+  scopeSummary: string;
+  items: ProposalItem[];
+  totalAmountUSD: number;
+  expiryDate: string;
+  status: ProposalStatus;
+  createdAt: string;
+  sentAt?: string;
+  respondedAt?: string;
+  clientFeedback?: string;
+}
+
+export type ProjectStatus = 'Planning' | 'Active' | 'On Hold' | 'Review' | 'Completed' | 'Cancelled';
+export type TaskPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
+export type TaskStatus = 'Todo' | 'In Progress' | 'In Review' | 'Completed';
+
+export interface ProjectTask {
+  id: string;
+  title: string;
+  description: string;
+  assignedTo: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+  deadline: string;
+}
+
+export interface ProjectMilestone {
+  id: string;
+  title: string;
+  dueDate: string;
+  completed: boolean;
+  deliverables: string[];
+}
+
+export interface ProjectDocument {
+  id: string;
+  title: string;
+  fileUrl: string;
+  uploadedBy: string;
+  uploadedAt: string;
+}
+
+export interface ClientProject {
+  id: string;
+  clientId: string;
+  clientName: string;
+  companyName: string;
+  title: string;
+  description: string;
+  serviceCategory: string;
+  status: ProjectStatus;
+  projectManager: string;
+  teamMembers: string[];
+  progressPercentage: number;
+  startDate: string;
+  expectedCompletionDate: string;
+  milestones: ProjectMilestone[];
+  tasks: ProjectTask[];
+  documents: ProjectDocument[];
+  budgetUSD: number;
+  clientFeedback?: string;
+}
+
+export interface CRMActivityLog {
+  id: string;
+  entityType: 'Lead' | 'Client' | 'Proposal' | 'Project';
+  entityId: string;
+  action: string;
+  performedBy: string;
+  timestamp: string;
+  details: string;
+}
+
+
 

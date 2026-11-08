@@ -2290,17 +2290,590 @@ app.post('/api/lms/announcements', (req: Request, res: Response) => {
   res.status(201).json({ success: true, announcement: newAnc });
 });
 
-// Ingest User Feedback
-app.post('/api/intelligence/feedback', (req: Request, res: Response) => {
-  const { feedbackType, comment, query } = req.body;
-  knowledgeGapsStore.unshift({
-    id: `gap-${Date.now().toString().slice(-4)}`,
-    topic: comment || query || 'User feedback item',
-    frequency: 1,
-    status: 'Pending Review',
-    suggestion: `Generated from user feedback (${feedbackType || 'general'}). Admin review required before updating RAG index.`,
+// ----------------------------------------------------
+// SERVICES CRM & CLIENT PROJECT MANAGEMENT BACKEND
+// ----------------------------------------------------
+
+interface CRMLeadRecord {
+  id: string;
+  contactName: string;
+  companyName: string;
+  email: string;
+  phone?: string;
+  country?: string;
+  source: 'Website Inquiry' | 'Contact Form' | 'Referral' | 'LinkedIn' | 'Outreach';
+  status: 'New' | 'Contacted' | 'Qualified' | 'Proposal Sent' | 'Negotiation' | 'Converted' | 'Lost';
+  priority: 'Low' | 'Medium' | 'High' | 'Urgent';
+  assignedSalesRep: string;
+  requiredService: string;
+  budgetRange: string;
+  timeline: string;
+  description: string;
+  internalNotes: string[];
+  followUpDate?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ClientRecord {
+  id: string;
+  name: string;
+  companyName: string;
+  email: string;
+  phone?: string;
+  country?: string;
+  assignedAccountManager: string;
+  activeProjectIds: string[];
+  completedProjectIds: string[];
+  totalValueUSD: number;
+  status: 'Active' | 'On Hold' | 'Archived';
+  joinedAt: string;
+}
+
+interface ProposalItemRecord {
+  id: string;
+  serviceTitle: string;
+  description: string;
+  deliverables: string[];
+  estimatedDays: number;
+  priceUSD: number;
+}
+
+interface ProposalRecord {
+  id: string;
+  leadId?: string;
+  clientId?: string;
+  clientName: string;
+  clientEmail: string;
+  companyName: string;
+  title: string;
+  scopeSummary: string;
+  items: ProposalItemRecord[];
+  totalAmountUSD: number;
+  expiryDate: string;
+  status: 'Draft' | 'Sent' | 'Viewed' | 'Accepted' | 'Rejected' | 'Expired';
+  createdAt: string;
+  sentAt?: string;
+  respondedAt?: string;
+  clientFeedback?: string;
+}
+
+interface ProjectTaskRecord {
+  id: string;
+  title: string;
+  description: string;
+  assignedTo: string;
+  priority: 'Low' | 'Medium' | 'High' | 'Urgent';
+  status: 'Todo' | 'In Progress' | 'In Review' | 'Completed';
+  deadline: string;
+}
+
+interface ProjectMilestoneRecord {
+  id: string;
+  title: string;
+  dueDate: string;
+  completed: boolean;
+  deliverables: string[];
+}
+
+interface ProjectDocumentRecord {
+  id: string;
+  title: string;
+  fileUrl: string;
+  uploadedBy: string;
+  uploadedAt: string;
+}
+
+interface ClientProjectRecord {
+  id: string;
+  clientId: string;
+  clientName: string;
+  companyName: string;
+  title: string;
+  description: string;
+  serviceCategory: string;
+  status: 'Planning' | 'Active' | 'On Hold' | 'Review' | 'Completed' | 'Cancelled';
+  projectManager: string;
+  teamMembers: string[];
+  progressPercentage: number;
+  startDate: string;
+  expectedCompletionDate: string;
+  milestones: ProjectMilestoneRecord[];
+  tasks: ProjectTaskRecord[];
+  documents: ProjectDocumentRecord[];
+  budgetUSD: number;
+  clientFeedback?: string;
+}
+
+interface CRMActivityLogRecord {
+  id: string;
+  entityType: 'Lead' | 'Client' | 'Proposal' | 'Project';
+  entityId: string;
+  action: string;
+  performedBy: string;
+  timestamp: string;
+  details: string;
+}
+
+// In-Memory CRM Stores
+const crmLeadsStore: CRMLeadRecord[] = [
+  {
+    id: 'LEAD-1001',
+    contactName: 'Sarah Chen',
+    companyName: 'Innovate Corp',
+    email: 'sarah.chen@innovatecorp.io',
+    phone: '+1 (555) 019-2834',
+    country: 'United States',
+    source: 'Website Inquiry',
+    status: 'Qualified',
+    priority: 'High',
+    assignedSalesRep: 'Marcus Thorne',
+    requiredService: 'AI Automation & Custom Agent Pipelines',
+    budgetRange: '$10,000 - $25,000',
+    timeline: '4 Weeks',
+    description: 'Seeking custom LLM agent integration for customer intelligence and automated document parsing pipeline.',
+    internalNotes: [
+      'Initial discovery call completed on Nov 5.',
+      'Requirements match our Enterprise AI Automation package.'
+    ],
+    followUpDate: new Date(Date.now() + 86400000 * 2).toISOString(),
+    createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+    updatedAt: new Date(Date.now() - 86400000 * 1).toISOString(),
+  },
+  {
+    id: 'LEAD-1002',
+    contactName: 'Marcus Vance',
+    companyName: 'Vance Capital',
+    email: 'marcus@vancecapital.com',
+    phone: '+1 (555) 018-9921',
+    country: 'United Kingdom',
+    source: 'Contact Form',
+    status: 'Proposal Sent',
+    priority: 'Urgent',
+    assignedSalesRep: 'Kaelen Vance',
+    requiredService: 'Full-Stack Web & Mobile Software Engineering',
+    budgetRange: '$25,000+',
+    timeline: '6 Weeks',
+    description: 'We require a next-generation high frequency trading UI, analytics dashboard, and mobile companion app.',
+    internalNotes: [
+      'Proposal PROP-3001 sent to client.',
+      'Awaiting technical review from Vance Capital CTO.'
+    ],
+    followUpDate: new Date(Date.now() + 86400000 * 1).toISOString(),
+    createdAt: new Date(Date.now() - 86400000 * 8).toISOString(),
+    updatedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+  }
+];
+
+const clientsStore: ClientRecord[] = [
+  {
+    id: 'CLI-2001',
+    name: 'Elena Rostova',
+    companyName: 'BioMedX Corp',
+    email: 'elena@biomedx.org',
+    phone: '+1 (555) 012-4411',
+    country: 'Canada',
+    assignedAccountManager: 'Marcus Thorne',
+    activeProjectIds: ['PRJ-4001'],
+    completedProjectIds: [],
+    totalValueUSD: 18000,
+    status: 'Active',
+    joinedAt: new Date(Date.now() - 86400000 * 30).toISOString(),
+  }
+];
+
+const proposalsStore: ProposalRecord[] = [
+  {
+    id: 'PROP-3001',
+    leadId: 'LEAD-1002',
+    clientName: 'Marcus Vance',
+    clientEmail: 'marcus@vancecapital.com',
+    companyName: 'Vance Capital',
+    title: 'Enterprise High-Frequency Trading Analytics Portal',
+    scopeSummary: 'Custom React 19 high-frequency trading dashboard, WebSocket real-time data ingestion, and Node.js microservices.',
+    items: [
+      { id: 'pi-1', serviceTitle: 'React 19 Trading Portal & Real-time Canvas', description: 'Sub-millisecond chart rendering using WebGL canvas.', deliverables: ['React 19 Portal', 'WebGL Chart Engine'], estimatedDays: 14, priceUSD: 15000 },
+      { id: 'pi-2', serviceTitle: 'Node.js Microservices & WebSocket Engine', description: 'Resilient API gateway with JWT session security.', deliverables: ['Node.js Backend', 'WebSocket Stream'], estimatedDays: 10, priceUSD: 10000 }
+    ],
+    totalAmountUSD: 25000,
+    expiryDate: new Date(Date.now() + 86400000 * 14).toISOString(),
+    status: 'Sent',
+    createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+    sentAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+  }
+];
+
+const projectsStore: ClientProjectRecord[] = [
+  {
+    id: 'PRJ-4001',
+    clientId: 'CLI-2001',
+    clientName: 'Elena Rostova',
+    companyName: 'BioMedX Corp',
+    title: 'Genomics AI Data Analytics & Brand Overhaul',
+    description: 'Deploying custom genomic data parsing algorithms with a React 19 analytics dashboard and design system.',
+    serviceCategory: 'AI Automation & Web Engineering',
+    status: 'Active',
+    projectManager: 'Marcus Thorne',
+    teamMembers: ['Dr. Evelyn Sterling', 'Kaelen Vance', 'Elena Rostova'],
+    progressPercentage: 65,
+    startDate: new Date(Date.now() - 86400000 * 20).toISOString(),
+    expectedCompletionDate: new Date(Date.now() + 86400000 * 15).toISOString(),
+    budgetUSD: 18000,
+    milestones: [
+      { id: 'm1', title: 'Milestone 1: Design System & Figma Tokens', dueDate: new Date(Date.now() - 86400000 * 10).toISOString(), completed: true, deliverables: ['Figma Design Token Spec', 'Color System'] },
+      { id: 'm2', title: 'Milestone 2: Genomic Data Ingestion Engine', dueDate: new Date(Date.now() + 86400000 * 5).toISOString(), completed: false, deliverables: ['FastAPI Data Parser', 'PostgreSQL Schema'] },
+      { id: 'm3', title: 'Milestone 3: Final Production Release & Audit', dueDate: new Date(Date.now() + 86400000 * 15).toISOString(), completed: false, deliverables: ['Cloud Run Deployment', 'SOC2 Audit Report'] }
+    ],
+    tasks: [
+      { id: 't1', title: 'Implement PostgreSQL Genomic Data Indexes', description: 'Optimize vector search queries for DNA sequence matching.', assignedTo: 'Dr. Evelyn Sterling', priority: 'High', status: 'In Progress', deadline: new Date(Date.now() + 86400000 * 2).toISOString() },
+      { id: 't2', title: 'Deploy React 19 Dashboard to Cloud Run', description: 'Set up zero-downtime CI/CD build trigger.', assignedTo: 'Kaelen Vance', priority: 'Medium', status: 'Todo', deadline: new Date(Date.now() + 86400000 * 6).toISOString() }
+    ],
+    documents: [
+      { id: 'doc-p1', title: 'BioMedX_Architecture_Specification_v1.pdf', fileUrl: '#', uploadedBy: 'Marcus Thorne', uploadedAt: new Date(Date.now() - 86400000 * 18).toISOString() }
+    ],
+    clientFeedback: 'Milestone 1 design tokens were approved by our executive board. Excellent work!'
+  }
+];
+
+const crmActivitiesStore: CRMActivityLogRecord[] = [
+  {
+    id: 'act-1',
+    entityType: 'Lead',
+    entityId: 'LEAD-1001',
+    action: 'Lead Qualified',
+    performedBy: 'Marcus Thorne',
+    timestamp: new Date(Date.now() - 86400000 * 1).toISOString(),
+    details: 'Qualified lead requirement matching Enterprise AI Automation package.'
+  }
+];
+
+let leadCounter = 1002;
+let clientCounter = 2001;
+let proposalCounter = 3001;
+let projectCounter = 4001;
+
+// ----------------------------------------------------
+// CRM REST API ENDPOINTS
+// ----------------------------------------------------
+
+// Get All Leads
+app.get('/api/crm/leads', (req: Request, res: Response) => {
+  const status = req.query.status as string;
+  const priority = req.query.priority as string;
+  let filtered = [...crmLeadsStore];
+
+  if (status && status !== 'All') filtered = filtered.filter(l => l.status === status);
+  if (priority && priority !== 'All') filtered = filtered.filter(l => l.priority === priority);
+
+  res.json({ leads: filtered });
+});
+
+// Create Lead
+app.post('/api/crm/leads', (req: Request, res: Response) => {
+  const { contactName, companyName, email, phone, country, source, priority, assignedSalesRep, requiredService, budgetRange, timeline, description } = req.body;
+
+  if (!contactName || !email) {
+    return res.status(400).json({ error: 'Contact name and email are required.' });
+  }
+
+  leadCounter++;
+  const leadId = `LEAD-${leadCounter}`;
+  const nowStr = new Date().toISOString();
+
+  const newLead: CRMLeadRecord = {
+    id: leadId,
+    contactName,
+    companyName: companyName || 'Independent',
+    email,
+    phone,
+    country: country || 'Global',
+    source: source || 'Website Inquiry',
+    status: 'New',
+    priority: priority || 'Medium',
+    assignedSalesRep: assignedSalesRep || 'Marcus Thorne',
+    requiredService: requiredService || 'General Consultation',
+    budgetRange: budgetRange || 'To be discussed',
+    timeline: timeline || 'Flexible',
+    description: description || '',
+    internalNotes: ['Lead created in CRM.'],
+    createdAt: nowStr,
+    updatedAt: nowStr
+  };
+
+  crmLeadsStore.unshift(newLead);
+  crmActivitiesStore.unshift({
+    id: `act-${Date.now().toString().slice(-4)}`,
+    entityType: 'Lead',
+    entityId: leadId,
+    action: 'Lead Created',
+    performedBy: 'CRM Dispatch',
+    timestamp: nowStr,
+    details: `Lead created for ${contactName} (${companyName || 'Independent'})`
   });
-  res.json({ success: true, message: 'Feedback recorded securely. Thank you for helping improve Nexus Knowledge Brain.' });
+
+  res.status(201).json({ success: true, lead: newLead });
+});
+
+// Update Lead
+app.patch('/api/crm/leads/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { status, priority, assignedSalesRep, followUpDate, internalNote } = req.body;
+
+  const lead = crmLeadsStore.find(l => l.id === id);
+  if (!lead) return res.status(404).json({ error: 'Lead not found.' });
+
+  if (status) lead.status = status;
+  if (priority) lead.priority = priority;
+  if (assignedSalesRep) lead.assignedSalesRep = assignedSalesRep;
+  if (followUpDate) lead.followUpDate = followUpDate;
+  if (internalNote) lead.internalNotes.unshift(`[${new Date().toLocaleDateString()}] ${internalNote}`);
+  lead.updatedAt = new Date().toISOString();
+
+  res.json({ success: true, lead });
+});
+
+// Convert Lead to Client & Project
+app.post('/api/crm/leads/:id/convert', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const lead = crmLeadsStore.find(l => l.id === id);
+  if (!lead) return res.status(404).json({ error: 'Lead not found.' });
+
+  lead.status = 'Converted';
+  lead.updatedAt = new Date().toISOString();
+
+  // Create Client
+  clientCounter++;
+  const clientId = `CLI-${clientCounter}`;
+  const nowStr = new Date().toISOString();
+
+  const newClient: ClientRecord = {
+    id: clientId,
+    name: lead.contactName,
+    companyName: lead.companyName,
+    email: lead.email,
+    phone: lead.phone,
+    country: lead.country,
+    assignedAccountManager: lead.assignedSalesRep || 'Marcus Thorne',
+    activeProjectIds: [],
+    completedProjectIds: [],
+    totalValueUSD: 20000,
+    status: 'Active',
+    joinedAt: nowStr
+  };
+  clientsStore.unshift(newClient);
+
+  // Create Project
+  projectCounter++;
+  const projectId = `PRJ-${projectCounter}`;
+  const newProject: ClientProjectRecord = {
+    id: projectId,
+    clientId: newClient.id,
+    clientName: newClient.name,
+    companyName: newClient.companyName,
+    title: `${lead.requiredService} - ${newClient.companyName}`,
+    description: lead.description || 'Client project scope derived from converted CRM lead.',
+    serviceCategory: lead.requiredService,
+    status: 'Active',
+    projectManager: lead.assignedSalesRep || 'Marcus Thorne',
+    teamMembers: ['Marcus Thorne', 'Kaelen Vance'],
+    progressPercentage: 10,
+    startDate: nowStr,
+    expectedCompletionDate: new Date(Date.now() + 86400000 * 30).toISOString(),
+    budgetUSD: 20000,
+    milestones: [
+      { id: 'm1', title: 'Milestone 1: Discovery & Architecture Specification', dueDate: new Date(Date.now() + 86400000 * 7).toISOString(), completed: false, deliverables: ['Architecture Doc'] }
+    ],
+    tasks: [
+      { id: 't1', title: 'Initial Sprint Planning & Team Kickoff', description: 'Setup environment and repository.', assignedTo: 'Marcus Thorne', priority: 'High', status: 'In Progress', deadline: new Date(Date.now() + 86400000 * 3).toISOString() }
+    ],
+    documents: []
+  };
+
+  projectsStore.unshift(newProject);
+  newClient.activeProjectIds.push(projectId);
+
+  res.json({ success: true, lead, client: newClient, project: newProject });
+});
+
+// Get Clients List
+app.get('/api/crm/clients', (_req: Request, res: Response) => {
+  res.json({ clients: clientsStore });
+});
+
+// Get Proposals List
+app.get('/api/crm/proposals', (_req: Request, res: Response) => {
+  res.json({ proposals: proposalsStore });
+});
+
+// Create Proposal
+app.post('/api/crm/proposals', (req: Request, res: Response) => {
+  const { clientName, clientEmail, companyName, title, scopeSummary, items, totalAmountUSD, expiryDays } = req.body;
+
+  if (!clientName || !clientEmail || !title) {
+    return res.status(400).json({ error: 'Client name, email, and proposal title are required.' });
+  }
+
+  proposalCounter++;
+  const propId = `PROP-${proposalCounter}`;
+  const nowStr = new Date().toISOString();
+
+  const newProp: ProposalRecord = {
+    id: propId,
+    clientName,
+    clientEmail,
+    companyName: companyName || 'Client Org',
+    title,
+    scopeSummary: scopeSummary || 'Proposal scope and deliverables specification.',
+    items: items || [],
+    totalAmountUSD: totalAmountUSD || 15000,
+    expiryDate: new Date(Date.now() + 86400000 * (expiryDays || 14)).toISOString(),
+    status: 'Sent',
+    createdAt: nowStr,
+    sentAt: nowStr
+  };
+
+  proposalsStore.unshift(newProp);
+  res.status(201).json({ success: true, proposal: newProp });
+});
+
+// Update Proposal Status
+app.patch('/api/crm/proposals/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { status, clientFeedback } = req.body;
+
+  const prop = proposalsStore.find(p => p.id === id);
+  if (!prop) return res.status(404).json({ error: 'Proposal not found.' });
+
+  if (status) prop.status = status;
+  if (clientFeedback) prop.clientFeedback = clientFeedback;
+  prop.respondedAt = new Date().toISOString();
+
+  res.json({ success: true, proposal: prop });
+});
+
+// Get Projects List
+app.get('/api/crm/projects', (req: Request, res: Response) => {
+  const clientId = req.query.clientId as string;
+  if (clientId) {
+    const clientProjects = projectsStore.filter(p => p.clientId === clientId);
+    return res.json({ projects: clientProjects });
+  }
+  res.json({ projects: projectsStore });
+});
+
+// Create Project
+app.post('/api/crm/projects', (req: Request, res: Response) => {
+  const { clientId, clientName, companyName, title, description, serviceCategory, budgetUSD } = req.body;
+
+  if (!title || !clientName) {
+    return res.status(400).json({ error: 'Project title and client name are required.' });
+  }
+
+  projectCounter++;
+  const projectId = `PRJ-${projectCounter}`;
+  const nowStr = new Date().toISOString();
+
+  const newProject: ClientProjectRecord = {
+    id: projectId,
+    clientId: clientId || 'CLI-2001',
+    clientName,
+    companyName: companyName || 'Client Enterprise',
+    title,
+    description: description || 'Custom software development project.',
+    serviceCategory: serviceCategory || 'Software Engineering',
+    status: 'Active',
+    projectManager: 'Marcus Thorne',
+    teamMembers: ['Marcus Thorne', 'Dr. Evelyn Sterling'],
+    progressPercentage: 0,
+    startDate: nowStr,
+    expectedCompletionDate: new Date(Date.now() + 86400000 * 30).toISOString(),
+    budgetUSD: budgetUSD || 15000,
+    milestones: [
+      { id: 'm1', title: 'Milestone 1: Requirements Discovery & Figma Tokens', dueDate: new Date(Date.now() + 86400000 * 7).toISOString(), completed: false, deliverables: ['Discovery Doc'] }
+    ],
+    tasks: [],
+    documents: []
+  };
+
+  projectsStore.unshift(newProject);
+  res.status(201).json({ success: true, project: newProject });
+});
+
+// Update Project Parameters / Milestones / Tasks
+app.patch('/api/crm/projects/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { status, progressPercentage, milestones, tasks, clientFeedback } = req.body;
+
+  const project = projectsStore.find(p => p.id === id);
+  if (!project) return res.status(404).json({ error: 'Project not found.' });
+
+  if (status) project.status = status;
+  if (typeof progressPercentage === 'number') project.progressPercentage = progressPercentage;
+  if (milestones) project.milestones = milestones;
+  if (tasks) project.tasks = tasks;
+  if (clientFeedback) project.clientFeedback = clientFeedback;
+
+  res.json({ success: true, project });
+});
+
+// Add Task to Project
+app.post('/api/crm/projects/:id/tasks', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { title, description, assignedTo, priority, deadline } = req.body;
+
+  const project = projectsStore.find(p => p.id === id);
+  if (!project) return res.status(404).json({ error: 'Project not found.' });
+
+  const newTask: ProjectTaskRecord = {
+    id: `t-${Date.now().toString().slice(-4)}`,
+    title,
+    description: description || '',
+    assignedTo: assignedTo || 'Marcus Thorne',
+    priority: priority || 'Medium',
+    status: 'Todo',
+    deadline: deadline || new Date(Date.now() + 86400000 * 5).toISOString()
+  };
+
+  project.tasks.push(newTask);
+  res.status(201).json({ success: true, task: newTask, project });
+});
+
+// Client Portal Integrated Dashboard Endpoint
+app.get('/api/client-portal/dashboard', (req: Request, res: Response) => {
+  const email = (req.query.email as string) || 'elena@biomedx.org';
+
+  const client = clientsStore.find(c => c.email.toLowerCase() === email.toLowerCase()) || clientsStore[0];
+  const clientProjects = projectsStore.filter(p => p.clientId === client.id || p.clientName.toLowerCase().includes(client.name.toLowerCase()));
+  const clientProposals = proposalsStore.filter(p => p.clientEmail.toLowerCase() === email.toLowerCase());
+
+  res.json({
+    client,
+    projects: clientProjects,
+    proposals: clientProposals
+  });
+});
+
+// AI Copilot Lead Qualification Endpoint
+app.post('/api/crm/ai/qualify-lead', async (req: Request, res: Response) => {
+  const { contactName, companyName, requiredService, budgetRange, description } = req.body;
+
+  const prompt = `Analyze sales lead qualification:
+Contact: ${contactName} (${companyName})
+Required Service: ${requiredService}
+Budget Range: ${budgetRange}
+Description: ${description}
+
+Provide:
+1. Lead Qualification Rating (Qualified / Low Fit / High Value)
+2. Recommended Service & Deliverables
+3. 2 Discovery Questions for Sales Rep`;
+
+  try {
+    const analysis = await generateNexusAIResponse(prompt, 'You are an AI Sales Copilot for Nexus AI Academic & Solutions.');
+    res.json({ success: true, analysis });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'Lead qualification analysis failed.' });
+  }
 });
 
 async function startServer() {
