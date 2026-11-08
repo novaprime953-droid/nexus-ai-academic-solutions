@@ -11,10 +11,18 @@ export async function safeFetchJson<T = any>(
   options?: RequestInit
 ): Promise<ApiResponse<T>> {
   try {
+    const defaultHeaders: Record<string, string> = {
+      'Accept': 'application/json',
+    };
+
+    if (options?.body) {
+      defaultHeaders['Content-Type'] = 'application/json';
+    }
+
     const response = await fetch(url, {
       ...options,
       headers: {
-        'Accept': 'application/json',
+        ...defaultHeaders,
         ...(options?.headers || {}),
       },
     });
