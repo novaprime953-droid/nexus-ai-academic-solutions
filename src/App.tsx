@@ -47,8 +47,34 @@ import { PageRoute, Course, Service, AIToolItem } from './types';
 import { motion, AnimatePresence } from 'motion/react';
 import { AnimatedAIBackground, AIAnimationVariant } from './components/AnimatedAIBackground';
 
+const getInitialRoute = (): PageRoute => {
+  if (typeof window !== 'undefined') {
+    const rawPath = window.location.pathname.toLowerCase().trim();
+    const path = rawPath.replace(/^\/+|\/+$/g, '');
+
+    if (path === 'admin' || path === 'admin-dashboard' || path === 'admin/login') return 'admin';
+    if (path === 'gnrc') return 'gnrc';
+    if (path === 'gnrc/apply') return 'gnrc-apply';
+    if (path === 'gnrc/courses') return 'gnrc-courses';
+    if (path === 'gnrc/student-portal') return 'gnrc-student-portal';
+    if (path === 'support-center' || path === 'support') return 'support-center';
+    if (path === 'client-portal') return 'client-portal';
+    if (path === 'student-dashboard') return 'student-dashboard';
+    if (path === 'knowledge-admin') return 'knowledge-admin';
+    if (path === 'academy' || path === 'courses') return 'courses';
+    if (path === 'services') return 'services';
+    if (path === 'tools') return 'tools';
+    if (path === 'about') return 'about';
+    if (path === 'contact') return 'contact';
+    if (path === 'blog') return 'blog';
+    if (path === 'login') return 'login';
+    if (path === 'register') return 'register';
+  }
+  return 'home';
+};
+
 export default function App() {
-  const [currentPage, setCurrentPage] = useState<PageRoute>('home');
+  const [currentPage, setCurrentPage] = useState<PageRoute>(getInitialRoute());
   const [selectedCourse, setSelectedCourse] = useState<Course>(COURSES[0]);
   const [selectedService, setSelectedService] = useState<Service>(SERVICES[0]);
   const [selectedTool, setSelectedTool] = useState<AIToolItem>(AI_TOOLS[0]);
@@ -88,6 +114,25 @@ export default function App() {
     }
   }, [currentPage]);
 
+  React.useEffect(() => {
+    const onPopState = () => {
+      setCurrentPage(getInitialRoute());
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  const handleNavigate = (page: PageRoute) => {
+    setCurrentPage(page);
+    if (typeof window !== 'undefined') {
+      const newPath = page === 'home' ? '/' : `/${page}`;
+      if (window.location.pathname !== newPath) {
+        window.history.pushState({}, '', newPath);
+      }
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleAdminLoginSuccess = (token: string) => {
     localStorage.setItem('nexus_admin_token', token);
     setAdminToken(token);
@@ -100,11 +145,6 @@ export default function App() {
     setAdminToken(null);
     setIsAdminAuthenticated(false);
     setCurrentPage('admin');
-  };
-
-  const handleNavigate = (page: PageRoute) => {
-    setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSelectCourse = (course: Course) => {
