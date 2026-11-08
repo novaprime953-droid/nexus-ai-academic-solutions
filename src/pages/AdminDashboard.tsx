@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { COURSES, AI_TOOLS } from '../data/mockData';
 import { CardTilt } from '../components/CardTilt';
+import { safeFetchJson } from '../utils/api';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   PageRoute,
   SupportTicket,
@@ -14,7 +16,11 @@ import {
   ClientProject,
   LeadStatus,
   LeadPriority,
-  ProjectStatus
+  ProjectStatus,
+  SystemUserRecord,
+  SystemRole,
+  SystemSettings,
+  SystemAuditLog
 } from '../types';
 import {
   Users,
@@ -46,7 +52,15 @@ import {
   ArrowRight,
   Check,
   ChevronRight,
-  UserPlus
+  UserPlus,
+  Download,
+  Settings,
+  Activity,
+  Globe,
+  UserX,
+  FileSpreadsheet,
+  ToggleLeft,
+  ToggleRight
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -56,8 +70,22 @@ interface AdminDashboardProps {
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) => {
   const { user } = useAuth();
   const [activeSection, setActiveSection] = useState<
-    'overview' | 'leads' | 'clients' | 'proposals' | 'projects' | 'tickets' | 'inquiries'
+    'overview' | 'users' | 'analytics' | 'settings' | 'health' | 'audit' | 'leads' | 'clients' | 'proposals' | 'projects' | 'tickets' | 'inquiries'
   >('overview');
+
+  // Command Center Overview State
+  const [commandData, setCommandData] = useState<any>(null);
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [usersList, setUsersList] = useState<SystemUserRecord[]>([]);
+  const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
+  const [auditLogs, setAuditLogs] = useState<SystemAuditLog[]>([]);
+  const [systemHealth, setSystemHealth] = useState<any>(null);
+
+  // Users Filter & Edit State
+  const [userSearch, setUserSearch] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState('All');
+  const [selectedUserToEdit, setSelectedUserToEdit] = useState<SystemUserRecord | null>(null);
+  const [selectedUserNewRole, setSelectedUserNewRole] = useState<SystemRole>('Student');
 
   // Support Tickets State
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
@@ -75,13 +103,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   // CRM State
   const [leads, setLeads] = useState<CRMLead[]>([]);
   const [selectedLead, setSelectedLead] = useState<CRMLead | null>(null);
-  const [leadSearch, setLeadSearch] = useState('');
-  const [leadFilterStatus, setLeadFilterStatus] = useState('All');
-  const [leadNoteInput, setLeadNoteInput] = useState('');
-  const [qualifyingLead, setQualifyingLead] = useState(false);
   const [leadAiAnalysis, setLeadAiAnalysis] = useState<string | null>(null);
+  const [qualifyingLead, setQualifyingLead] = useState(false);
 
-  // New Lead Form State
+  // New Lead Form
   const [newLeadContact, setNewLeadContact] = useState('');
   const [newLeadCompany, setNewLeadCompany] = useState('');
   const [newLeadEmail, setNewLeadEmail] = useState('');
@@ -90,192 +115,148 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   const [newLeadDesc, setNewLeadDesc] = useState('');
   const [creatingLead, setCreatingLead] = useState(false);
 
-  // Clients & Proposals & Projects State
+  // Clients, Proposals, Projects
   const [clients, setClients] = useState<ClientRecord[]>([]);
   const [proposals, setProposals] = useState<ProposalRecord[]>([]);
   const [projects, setProjects] = useState<ClientProject[]>([]);
-  const [selectedProject, setSelectedProject] = useState<ClientProject | null>(null);
-
-  // New Proposal Form State
-  const [newPropClient, setNewPropClient] = useState('');
-  const [newPropEmail, setNewPropEmail] = useState('');
-  const [newPropTitle, setNewPropTitle] = useState('');
-  const [newPropAmount, setNewPropAmount] = useState(15000);
-  const [creatingProp, setCreatingProp] = useState(false);
-
-  // Inquiries State
   const [inquiries, setInquiries] = useState<any[]>([]);
-  const [stats, setStats] = useState<any>({
-    totalStudents: 12480,
-    activeLearners: 3820,
-    coursesPublished: 24,
-    enterpriseClients: 185,
-    aiInvocationsToday: 1420,
-  });
 
-  const fetchCRMData = async () => {
-    try {
-      const [lRes, cRes, pRes, prjRes, inqRes, tRes, stRes] = await Promise.all([
-        fetch('/api/crm/leads'),
-        fetch('/api/crm/clients'),
-        fetch('/api/crm/proposals'),
-        fetch('/api/crm/projects'),
-        fetch('/api/inquiries'),
-        fetch('/api/tickets?role=admin'),
-        fetch('/api/stats')
-      ]);
+  // Settings Save State
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsSavedMsg, setSettingsSavedMsg] = useState<string | null>(null);
 
-      if (lRes.ok) setLeads((await lRes.json()).leads || []);
-      if (cRes.ok) setClients((await cRes.json()).clients || []);
-      if (pRes.ok) setProposals((await pRes.json()).proposals || []);
-      if (prjRes.ok) setProjects((await prjRes.json()).projects || []);
-      if (inqRes.ok) setInquiries((await inqRes.json()).inquiries || []);
-      if (tRes.ok) setTickets((await tRes.json()).tickets || []);
-      if (stRes.ok) setStats(await stRes.json());
-    } catch (e) {
-      console.error(e);
-    }
+  const fetchCommandCenterData = async () => {
+    const [cmdRes, anaRes, usrRes, setRes, audRes, hltRes, lRes, cRes, pRes, prjRes, inqRes, tRes] = await Promise.all([
+      safeFetchJson('/api/admin/command-center'),
+      safeFetchJson('/api/admin/analytics?range=30d'),
+      safeFetchJson('/api/admin/users'),
+      safeFetchJson('/api/admin/settings'),
+      safeFetchJson('/api/admin/audit-logs'),
+      safeFetchJson('/api/admin/health'),
+      safeFetchJson('/api/crm/leads'),
+      safeFetchJson('/api/crm/clients'),
+      safeFetchJson('/api/crm/proposals'),
+      safeFetchJson('/api/crm/projects'),
+      safeFetchJson('/api/inquiries'),
+      safeFetchJson('/api/tickets?role=admin')
+    ]);
+
+    if (cmdRes.success) setCommandData(cmdRes.data);
+    if (anaRes.success) setAnalyticsData(anaRes.data);
+    if (usrRes.success) setUsersList(usrRes.data?.users || []);
+    if (setRes.success) setSystemSettings(setRes.data?.settings);
+    if (audRes.success) setAuditLogs(audRes.data?.auditLogs || []);
+    if (hltRes.success) setSystemHealth(hltRes.data);
+    if (lRes.success) setLeads(lRes.data?.leads || []);
+    if (cRes.success) setClients(cRes.data?.clients || []);
+    if (pRes.success) setProposals(pRes.data?.proposals || []);
+    if (prjRes.success) setProjects(prjRes.data?.projects || []);
+    if (inqRes.success) setInquiries(inqRes.data?.inquiries || []);
+    if (tRes.success) setTickets(tRes.data?.tickets || []);
   };
 
   useEffect(() => {
-    fetchCRMData();
+    fetchCommandCenterData();
   }, []);
+
+  const handleUpdateUserRole = async (userId: string, newRole: SystemRole, status?: 'Active' | 'Suspended') => {
+    const res = await safeFetchJson(`/api/admin/users/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role: newRole, status, actorRole: user?.role || 'admin' })
+    });
+
+    if (res.success) {
+      setSelectedUserToEdit(null);
+      fetchCommandCenterData();
+    } else {
+      alert(res.error || 'Permission denied: Cannot modify user role.');
+    }
+  };
+
+  const handleSaveSettingsCategory = async (category: string, updates: any) => {
+    setSettingsSaving(true);
+    setSettingsSavedMsg(null);
+
+    const res = await safeFetchJson('/api/admin/settings', {
+      method: 'PATCH',
+      body: JSON.stringify({ category, updates })
+    });
+
+    if (res.success) {
+      setSettingsSavedMsg(`Category ${category} updated successfully.`);
+      fetchCommandCenterData();
+    }
+    setSettingsSaving(false);
+  };
+
+  const handleExportCSV = (type: string) => {
+    window.open(`/api/admin/export/${type}`, '_blank');
+  };
 
   const handleCreateLead = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newLeadContact || !newLeadEmail) return;
     setCreatingLead(true);
 
-    try {
-      const res = await fetch('/api/crm/leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contactName: newLeadContact,
-          companyName: newLeadCompany,
-          email: newLeadEmail,
-          requiredService: newLeadService,
-          budgetRange: newLeadBudget,
-          description: newLeadDesc,
-          assignedSalesRep: user?.name || 'Marcus Thorne'
-        })
-      });
+    const res = await safeFetchJson('/api/crm/leads', {
+      method: 'POST',
+      body: JSON.stringify({
+        contactName: newLeadContact,
+        companyName: newLeadCompany,
+        email: newLeadEmail,
+        requiredService: newLeadService,
+        budgetRange: newLeadBudget,
+        description: newLeadDesc,
+        assignedSalesRep: user?.name || 'Marcus Thorne'
+      })
+    });
 
-      if (res.ok) {
-        setNewLeadContact('');
-        setNewLeadCompany('');
-        setNewLeadEmail('');
-        setNewLeadDesc('');
-        fetchCRMData();
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setCreatingLead(false);
+    if (res.success) {
+      setNewLeadContact('');
+      setNewLeadCompany('');
+      setNewLeadEmail('');
+      setNewLeadDesc('');
+      fetchCommandCenterData();
     }
-  };
-
-  const handleUpdateLeadStatus = async (leadId: string, status: LeadStatus) => {
-    try {
-      const res = await fetch(`/api/crm/leads/${leadId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
-      });
-      if (res.ok) {
-        fetchCRMData();
-      }
-    } catch (e) {
-      console.error(e);
-    }
+    setCreatingLead(false);
   };
 
   const handleConvertLead = async (leadId: string) => {
-    try {
-      const res = await fetch(`/api/crm/leads/${leadId}/convert`, { method: 'POST' });
-      if (res.ok) {
-        fetchCRMData();
-      }
-    } catch (e) {
-      console.error(e);
+    const res = await safeFetchJson(`/api/crm/leads/${leadId}/convert`, { method: 'POST' });
+    if (res.success) {
+      fetchCommandCenterData();
     }
   };
 
   const handleAiQualifyLead = async (lead: CRMLead) => {
     setQualifyingLead(true);
-    try {
-      const res = await fetch('/api/crm/ai/qualify-lead', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contactName: lead.contactName,
-          companyName: lead.companyName,
-          requiredService: lead.requiredService,
-          budgetRange: lead.budgetRange,
-          description: lead.description
-        })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setLeadAiAnalysis(data.analysis);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setQualifyingLead(false);
+    const res = await safeFetchJson('/api/crm/ai/qualify-lead', {
+      method: 'POST',
+      body: JSON.stringify({
+        contactName: lead.contactName,
+        companyName: lead.companyName,
+        requiredService: lead.requiredService,
+        budgetRange: lead.budgetRange,
+        description: lead.description
+      })
+    });
+
+    if (res.success) {
+      setLeadAiAnalysis(res.data?.analysis || 'Lead analysis completed.');
     }
-  };
-
-  const handleCreateProposal = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newPropClient || !newPropTitle) return;
-    setCreatingProp(true);
-
-    try {
-      const res = await fetch('/api/crm/proposals', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientName: newPropClient,
-          clientEmail: newPropEmail,
-          title: newPropTitle,
-          totalAmountUSD: Number(newPropAmount),
-          scopeSummary: 'Enterprise custom software deliverables and milestone architecture.',
-          items: [
-            { id: 'i1', serviceTitle: newPropTitle, description: 'Core deliverables execution.', deliverables: ['Source Code', 'Architecture Doc'], estimatedDays: 14, priceUSD: Number(newPropAmount) }
-          ]
-        })
-      });
-
-      if (res.ok) {
-        setNewPropClient('');
-        setNewPropEmail('');
-        setNewPropTitle('');
-        fetchCRMData();
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setCreatingProp(false);
-    }
+    setQualifyingLead(false);
   };
 
   const handleUpdateTicket = async (ticketId: string, updates: Partial<SupportTicket>) => {
-    try {
-      const res = await fetch(`/api/tickets/${ticketId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (selectedTicket?.id === ticketId) {
-          setSelectedTicket(data.ticket);
-        }
-        fetchCRMData();
+    const res = await safeFetchJson(`/api/tickets/${ticketId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+    if (res.success) {
+      if (selectedTicket?.id === ticketId) {
+        setSelectedTicket(res.data.ticket);
       }
-    } catch (e) {
-      console.error(e);
+      fetchCommandCenterData();
     }
   };
 
@@ -284,47 +265,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
     if (!text.trim()) return;
 
     setIsPostingReply(true);
-    try {
-      const res = await fetch(`/api/tickets/${ticketId}/replies`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          senderName: user?.name || 'Marcus Thorne (Administrator)',
-          senderEmail: user?.email || 'admin@nexusai.com',
-          senderRole: 'staff',
-          message: text,
-          isInternalNote,
-        }),
-      });
+    const res = await safeFetchJson(`/api/tickets/${ticketId}/replies`, {
+      method: 'POST',
+      body: JSON.stringify({
+        senderName: user?.name || 'Marcus Thorne (Administrator)',
+        senderEmail: user?.email || 'admin@nexusai.com',
+        senderRole: 'staff',
+        message: text,
+        isInternalNote,
+      }),
+    });
 
-      if (res.ok) {
-        if (isInternalNote) setInternalNoteText('');
-        else setStaffReplyText('');
+    if (res.success) {
+      if (isInternalNote) setInternalNoteText('');
+      else setStaffReplyText('');
 
-        const resTicket = await fetch(`/api/tickets/${ticketId}?role=admin`);
-        if (resTicket.ok) {
-          const data = await resTicket.json();
-          setSelectedTicket(data.ticket);
-        }
-        fetchCRMData();
+      const resTicket = await safeFetchJson(`/api/tickets/${ticketId}?role=admin`);
+      if (resTicket.success) {
+        setSelectedTicket(resTicket.data.ticket);
       }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsPostingReply(false);
+      fetchCommandCenterData();
     }
+    setIsPostingReply(false);
   };
 
-  const filteredTickets = tickets.filter((t) => {
-    const matchesStatus = ticketFilterStatus === 'All' || t.status === ticketFilterStatus;
-    const matchesCategory = ticketFilterCategory === 'All' || t.category === ticketFilterCategory;
-    const matchesPriority = ticketFilterPriority === 'All' || t.priority === ticketFilterPriority;
-    const matchesSearch =
-      !ticketSearch ||
-      t.id.toLowerCase().includes(ticketSearch.toLowerCase()) ||
-      t.customerName.toLowerCase().includes(ticketSearch.toLowerCase()) ||
-      t.subject.toLowerCase().includes(ticketSearch.toLowerCase());
-    return matchesStatus && matchesCategory && matchesPriority && matchesSearch;
+  const filteredUsers = usersList.filter(u => {
+    const matchesSearch = !userSearch || u.name.toLowerCase().includes(userSearch.toLowerCase()) || u.email.toLowerCase().includes(userSearch.toLowerCase());
+    const matchesRole = userRoleFilter === 'All' || u.role === userRoleFilter;
+    return matchesSearch && matchesRole;
   });
 
   return (
@@ -336,13 +304,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
           <div>
             <div className="flex items-center gap-2 text-xs text-slate-400">
               <span className="text-purple-400 font-semibold uppercase tracking-wider">
-                Nexus Administration Core
+                Nexus Owner &amp; Super Admin Core
               </span>
               <span>·</span>
-              <span>Services CRM &amp; Command Console</span>
+              <span>RBAC Role: {user?.role || 'Super Admin'}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">
-              Enterprise Command &amp; Client Console
+              Owner Command Center &amp; System Settings
             </h1>
             <p className="text-xs text-slate-400 mt-1">
               Active Session: {user?.name} ({user?.email})
@@ -351,32 +319,41 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
           <div className="flex items-center gap-3">
             <button
-              onClick={() => onNavigate('knowledge-admin')}
-              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-md shadow-purple-600/25 transition-all"
+              onClick={() => handleExportCSV('leads')}
+              className="px-3.5 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
             >
-              <Database className="w-3.5 h-3.5" />
-              <span>Knowledge Brain (RAG)</span>
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Export CSV</span>
             </button>
             <button
-              onClick={fetchCRMData}
-              className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-2 transition-colors"
+              onClick={() => onNavigate('knowledge-admin')}
+              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-md shadow-purple-600/25 transition-all"
+            >
+              <Database className="w-3.5 h-3.5" />
+              <span>Knowledge Brain</span>
+            </button>
+            <button
+              onClick={fetchCommandCenterData}
+              className="px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-2 transition-colors"
             >
               <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Refresh All Pipeline Data</span>
+              <span>Refresh Metrics</span>
             </button>
           </div>
         </div>
 
-        {/* Section Tabs */}
+        {/* Section Navigation Tabs */}
         <div className="flex gap-2 border-b border-white/10 pb-4 overflow-x-auto text-xs font-medium">
           {[
-            { id: 'overview', label: 'Overview Metrics' },
+            { id: 'overview', label: 'Owner Command Center' },
+            { id: 'users', label: `Users & Roles (${usersList.length})` },
+            { id: 'analytics', label: 'Advanced Analytics' },
+            { id: 'settings', label: 'System Settings' },
+            { id: 'health', label: 'System Health & Monitoring' },
+            { id: 'audit', label: `Security Audit Logs (${auditLogs.length})` },
             { id: 'leads', label: `CRM Leads (${leads.length})` },
-            { id: 'clients', label: `Client Directory (${clients.length})` },
-            { id: 'proposals', label: `Proposals (${proposals.length})` },
             { id: 'projects', label: `Active Projects (${projects.length})` },
             { id: 'tickets', label: `Support Desk (${tickets.length})` },
-            { id: 'inquiries', label: `Inquiries (${inquiries.length})` },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -392,245 +369,147 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
           ))}
         </div>
 
-        {/* OVERVIEW METRICS */}
-        {activeSection === 'overview' && (
+        {/* TAB 1: OWNER COMMAND CENTER OVERVIEW */}
+        {activeSection === 'overview' && commandData && (
           <div className="space-y-8">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="glass-panel p-6 rounded-2xl border border-purple-500/20 space-y-2">
                 <div className="flex items-center justify-between text-slate-400 text-xs">
-                  <span>CRM Active Pipeline</span>
-                  <Briefcase className="w-4 h-4 text-purple-400" />
+                  <span>Registered Users</span>
+                  <Users className="w-4 h-4 text-purple-400" />
                 </div>
-                <div className="text-3xl font-extrabold text-white">{leads.length} Leads</div>
-                <span className="text-[10px] text-cyan-400 font-semibold">{leads.filter(l => l.status === 'Qualified').length} Qualified Opportunities</span>
+                <div className="text-3xl font-extrabold text-white">{commandData.metrics.registeredUsers}</div>
+                <span className="text-[10px] text-emerald-400 font-semibold">{commandData.metrics.activeUsers} Active Accounts</span>
               </div>
 
               <div className="glass-panel p-6 rounded-2xl border border-amber-500/20 space-y-2">
                 <div className="flex items-center justify-between text-slate-400 text-xs">
-                  <span>Active Client Projects</span>
+                  <span>Total Contract Value</span>
                   <DollarSign className="w-4 h-4 text-amber-400" />
                 </div>
-                <div className="text-3xl font-extrabold text-amber-400">${projects.reduce((acc, p) => acc + p.budgetUSD, 0).toLocaleString()} USD</div>
-                <span className="text-[10px] text-amber-400 font-semibold">{projects.length} In-Flight Deliverables</span>
+                <div className="text-3xl font-extrabold text-amber-400">${commandData.metrics.totalRevenueUSD?.toLocaleString()} USD</div>
+                <span className="text-[10px] text-amber-400 font-semibold">{commandData.metrics.activeProjectsCount} In-Flight Projects</span>
               </div>
 
               <div className="glass-panel p-6 rounded-2xl border border-blue-500/20 space-y-2">
                 <div className="flex items-center justify-between text-slate-400 text-xs">
-                  <span>Support Tickets Queue</span>
-                  <MessageSquare className="w-4 h-4 text-cyan-400" />
+                  <span>Active CRM Leads</span>
+                  <Briefcase className="w-4 h-4 text-cyan-400" />
                 </div>
-                <div className="text-3xl font-extrabold text-white">{tickets.length}</div>
-                <span className="text-[10px] text-cyan-400 font-semibold">{tickets.filter(t => t.status === 'Open').length} Open Tickets</span>
+                <div className="text-3xl font-extrabold text-white">{commandData.metrics.crmLeadsCount}</div>
+                <span className="text-[10px] text-cyan-400 font-semibold">{commandData.metrics.pendingProposalsCount} Sent Proposals</span>
               </div>
 
               <div className="glass-panel p-6 rounded-2xl border border-emerald-500/20 space-y-2">
                 <div className="flex items-center justify-between text-slate-400 text-xs">
-                  <span>Client Directory</span>
-                  <Users className="w-4 h-4 text-emerald-400" />
+                  <span>Support Tickets Queue</span>
+                  <MessageSquare className="w-4 h-4 text-emerald-400" />
                 </div>
-                <div className="text-3xl font-extrabold text-white">{clients.length} Accounts</div>
-                <span className="text-[10px] text-emerald-400 font-semibold">100% Active Relationships</span>
+                <div className="text-3xl font-extrabold text-white">{commandData.metrics.ticketsOpenCount} Open</div>
+                <span className="text-[10px] text-red-400 font-semibold">{commandData.metrics.ticketsEscalatedCount} P1 Escalated</span>
               </div>
             </div>
-          </div>
-        )}
 
-        {/* TAB: CRM LEADS & SALES PIPELINE */}
-        {activeSection === 'leads' && (
-          <div className="space-y-8">
-            {/* Create Lead Form */}
-            <CardTilt className="glass-panel p-6 sm:p-8 rounded-3xl border border-purple-500/30 space-y-4 bg-[#151F40]/90 max-w-4xl mx-auto">
+            {/* Recent Operational Activity Stream */}
+            <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-white/10 space-y-4 bg-[#151F40]/90 text-xs">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <UserPlus className="w-4 h-4 text-cyan-400" /> Add New Sales Lead to CRM Pipeline
+                <Activity className="w-4 h-4 text-cyan-400" /> Real-Time Operational System Activity
               </h3>
-              <form onSubmit={handleCreateLead} className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-                <input
-                  type="text"
-                  required
-                  value={newLeadContact}
-                  onChange={(e) => setNewLeadContact(e.target.value)}
-                  placeholder="Contact Name *"
-                  className="bg-[#10172F] border border-white/10 rounded-xl px-3.5 py-2.5 text-white"
-                />
-                <input
-                  type="text"
-                  value={newLeadCompany}
-                  onChange={(e) => setNewLeadCompany(e.target.value)}
-                  placeholder="Company Name"
-                  className="bg-[#10172F] border border-white/10 rounded-xl px-3.5 py-2.5 text-white"
-                />
-                <input
-                  type="email"
-                  required
-                  value={newLeadEmail}
-                  onChange={(e) => setNewLeadEmail(e.target.value)}
-                  placeholder="Email Address *"
-                  className="bg-[#10172F] border border-white/10 rounded-xl px-3.5 py-2.5 text-white"
-                />
-                <select
-                  value={newLeadService}
-                  onChange={(e) => setNewLeadService(e.target.value)}
-                  className="bg-[#10172F] border border-white/10 rounded-xl px-3.5 py-2.5 text-white"
-                >
-                  <option>AI Automation &amp; Custom Agent Pipelines</option>
-                  <option>Full-Stack Web &amp; Mobile Software Engineering</option>
-                  <option>Cloud Infrastructure &amp; DevOps</option>
-                  <option>Security Audit &amp; LLM Vulnerability Defense</option>
-                </select>
-                <input
-                  type="text"
-                  value={newLeadBudget}
-                  onChange={(e) => setNewLeadBudget(e.target.value)}
-                  placeholder="Budget Range"
-                  className="bg-[#10172F] border border-white/10 rounded-xl px-3.5 py-2.5 text-white"
-                />
-                <button
-                  type="submit"
-                  disabled={creatingLead}
-                  className="py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-semibold rounded-xl transition-all shadow-md disabled:opacity-50"
-                >
-                  {creatingLead ? 'Adding Lead...' : 'Add Lead to CRM'}
-                </button>
-              </form>
-            </CardTilt>
-
-            {/* Pipeline Table & Conversion */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-3 lg:col-span-1 bg-[#151F40] max-h-[550px] overflow-y-auto pr-1">
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Leads Pipeline Queue</h3>
-                {leads.map((l) => (
-                  <div
-                    key={l.id}
-                    onClick={() => setSelectedLead(l)}
-                    className={`p-4 rounded-2xl border transition-all cursor-pointer text-xs space-y-2 ${
-                      selectedLead?.id === l.id ? 'bg-purple-600/20 border-cyan-400/50 shadow-md' : 'bg-[#10172F] border-white/10'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between text-[10px] font-mono">
-                      <span className="text-cyan-400 font-bold">{l.id}</span>
-                      <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30">{l.status}</span>
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {commandData.recentActivities?.map((act: any) => (
+                  <div key={act.id} className="p-3 rounded-xl bg-[#10172F] border border-white/5 flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <span className="font-bold text-white block">{act.action} — {act.targetEntity}</span>
+                      <span className="text-slate-400 text-[10px]">{act.details}</span>
                     </div>
-                    <h4 className="font-bold text-white">{l.contactName} ({l.companyName})</h4>
-                    <span className="text-slate-400 text-[11px] block">{l.requiredService}</span>
-                    <div className="flex items-center justify-between text-[10px] text-amber-400 font-mono pt-1">
-                      <span>{l.budgetRange}</span>
-                      <span>{l.priority} Priority</span>
+                    <div className="text-right font-mono text-[10px] text-slate-400">
+                      <span className="text-cyan-400 block">{act.actorName}</span>
+                      <span>{new Date(act.timestamp).toLocaleTimeString()}</span>
                     </div>
                   </div>
                 ))}
               </div>
-
-              <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-purple-500/30 lg:col-span-2 space-y-6 bg-[#151F40]/90 text-xs flex flex-col justify-between min-h-[550px]">
-                {selectedLead ? (
-                  <>
-                    <div className="border-b border-white/10 pb-4 space-y-3">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <div>
-                          <span className="text-cyan-400 font-mono text-sm font-bold">{selectedLead.id}</span>
-                          <h2 className="text-lg font-bold text-white">{selectedLead.contactName} — {selectedLead.companyName}</h2>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <select
-                            value={selectedLead.status}
-                            onChange={(e) => handleUpdateLeadStatus(selectedLead.id, e.target.value as LeadStatus)}
-                            className="bg-[#10172F] border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white"
-                          >
-                            <option>New</option>
-                            <option>Contacted</option>
-                            <option>Qualified</option>
-                            <option>Proposal Sent</option>
-                            <option>Negotiation</option>
-                            <option>Converted</option>
-                            <option>Lost</option>
-                          </select>
-
-                          <button
-                            onClick={() => handleConvertLead(selectedLead.id)}
-                            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-md transition-all flex items-center gap-1 text-xs"
-                          >
-                            <Check className="w-3.5 h-3.5" /> Convert to Client &amp; Project
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-[#10172F] p-3 rounded-2xl border border-white/10 text-[11px]">
-                        <div>
-                          <span className="text-slate-400 block text-[10px]">Email:</span>
-                          <span className="text-white font-mono">{selectedLead.email}</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400 block text-[10px]">Required Service:</span>
-                          <span className="text-cyan-400 font-semibold">{selectedLead.requiredService}</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400 block text-[10px]">Budget &amp; Timeline:</span>
-                          <span className="text-amber-400 font-mono">{selectedLead.budgetRange} ({selectedLead.timeline})</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* AI Copilot Lead Qualification Analysis */}
-                    <div className="p-4 rounded-2xl bg-[#10172F] border border-cyan-400/30 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-cyan-400 font-bold flex items-center gap-1.5 text-xs">
-                          <Bot className="w-4 h-4" /> AI Sales Copilot Qualification Analysis
-                        </span>
-                        <button
-                          onClick={() => handleAiQualifyLead(selectedLead)}
-                          disabled={qualifyingLead}
-                          className="px-3 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-300 rounded-lg text-[10px] font-semibold flex items-center gap-1"
-                        >
-                          {qualifyingLead ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
-                          <span>Qualify Lead</span>
-                        </button>
-                      </div>
-                      <p className="text-slate-300 text-[11px] leading-relaxed whitespace-pre-wrap">
-                        {leadAiAnalysis || 'Click Qualify Lead to analyze lead requirements and generate discovery questions.'}
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <h4 className="font-bold text-slate-400 uppercase tracking-wider text-[10px]">Internal Notes &amp; Communication History</h4>
-                      <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
-                        {selectedLead.internalNotes.map((note, i) => (
-                          <p key={i} className="p-2.5 rounded-xl bg-[#10172F] border border-white/5 text-[11px] text-slate-300">{note}</p>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-slate-400 space-y-3">
-                    <Briefcase className="w-10 h-10 text-purple-400/40" />
-                    <p className="text-xs">Select a sales lead from the queue on the left to view details, qualify with AI, or convert to client &amp; project.</p>
-                  </div>
-                )}
-              </div>
             </div>
           </div>
         )}
 
-        {/* TAB: CLIENT DIRECTORY */}
-        {activeSection === 'clients' && (
+        {/* TAB 2: USER & ROLE MANAGEMENT */}
+        {activeSection === 'users' && (
           <div className="space-y-6">
+            <div className="glass-panel p-4 rounded-2xl border border-white/10 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 text-xs">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                  <input
+                    type="text"
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    placeholder="Search user name or email..."
+                    className="pl-9 pr-3 py-2 bg-[#10172F] border border-white/10 rounded-xl text-white text-xs placeholder-slate-500 focus:outline-none focus:border-cyan-400 w-60"
+                  />
+                </div>
+
+                <select
+                  value={userRoleFilter}
+                  onChange={(e) => setUserRoleFilter(e.target.value)}
+                  className="bg-[#10172F] border border-white/10 rounded-xl px-3 py-2 text-white"
+                >
+                  <option>All Roles</option>
+                  <option>Owner</option>
+                  <option>Super Admin</option>
+                  <option>Admin</option>
+                  <option>Instructor</option>
+                  <option>Student</option>
+                  <option>Client</option>
+                </select>
+              </div>
+
+              <div className="text-slate-400 font-mono text-[11px]">
+                Showing {filteredUsers.length} of {usersList.length} registered accounts
+              </div>
+            </div>
+
+            {/* Users Directory Table */}
             <div className="glass-panel rounded-3xl border border-white/10 overflow-hidden bg-[#151F40]/90 text-xs">
               <div className="px-6 py-4 border-b border-white/10 text-xs font-semibold uppercase tracking-wider text-slate-400 flex justify-between">
-                <span>Client &amp; Organization</span>
-                <span>Account Manager &amp; Contract Value</span>
+                <span>User Identity &amp; Email</span>
+                <span>Role &amp; Account Status</span>
               </div>
               <div className="divide-y divide-white/5">
-                {clients.map((cli) => (
-                  <div key={cli.id} className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-white/5 transition-colors">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-cyan-400 font-mono font-bold">{cli.id}</span>
-                        <strong className="text-white text-sm">{cli.name} ({cli.companyName})</strong>
+                {filteredUsers.map((u) => (
+                  <div key={u.id} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-white/5 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <img src={u.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'} alt={u.name} className="w-10 h-10 rounded-xl object-cover border border-white/10" />
+                      <div>
+                        <strong className="text-white text-sm block">{u.name}</strong>
+                        <span className="text-slate-400 font-mono text-[11px]">{u.email} · ID: {u.id}</span>
                       </div>
-                      <span className="text-slate-400 block font-mono">{cli.email} · {cli.country || 'Global'}</span>
                     </div>
 
-                    <div className="space-y-1 text-right font-mono">
-                      <span className="text-amber-400 font-bold block text-sm">${cli.totalValueUSD.toLocaleString()} USD</span>
-                      <span className="text-slate-400 text-[10px]">Manager: {cli.assignedAccountManager}</span>
+                    <div className="flex items-center gap-3">
+                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono border ${
+                        u.role === 'Owner' ? 'bg-purple-500/20 text-purple-300 border-purple-500/40' :
+                        u.role === 'Instructor' ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' :
+                        'bg-blue-500/20 text-blue-300 border-blue-500/40'
+                      }`}>
+                        {u.role}
+                      </span>
+
+                      <button
+                        onClick={() => handleUpdateUserRole(u.id, u.role, u.status === 'Active' ? 'Suspended' : 'Active')}
+                        className={`px-3 py-1 rounded-xl font-semibold text-[11px] border transition-all ${
+                          u.status === 'Active' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-red-500/20 text-red-300 border-red-500/40'
+                        }`}
+                      >
+                        {u.status}
+                      </button>
+
+                      <button
+                        onClick={() => { setSelectedUserToEdit(u); setSelectedUserNewRole(u.role); }}
+                        className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold rounded-xl"
+                      >
+                        Edit Role
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -639,114 +518,331 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
           </div>
         )}
 
-        {/* TAB: PROPOSALS & QUOTATIONS */}
-        {activeSection === 'proposals' && (
-          <div className="space-y-8">
-            <CardTilt className="glass-panel p-6 rounded-3xl border border-purple-500/30 space-y-4 bg-[#151F40]/90 max-w-4xl mx-auto text-xs">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <FileText className="w-4 h-4 text-cyan-400" /> Create Proposal &amp; Formal Quotation
-              </h3>
-              <form onSubmit={handleCreateProposal} className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <input
-                  type="text"
-                  required
-                  value={newPropClient}
-                  onChange={(e) => setNewPropClient(e.target.value)}
-                  placeholder="Client Name *"
-                  className="bg-[#10172F] border border-white/10 rounded-xl px-3 py-2 text-white"
-                />
-                <input
-                  type="email"
-                  required
-                  value={newPropEmail}
-                  onChange={(e) => setNewPropEmail(e.target.value)}
-                  placeholder="Client Email *"
-                  className="bg-[#10172F] border border-white/10 rounded-xl px-3 py-2 text-white"
-                />
-                <input
-                  type="text"
-                  required
-                  value={newPropTitle}
-                  onChange={(e) => setNewPropTitle(e.target.value)}
-                  placeholder="Proposal Title *"
-                  className="bg-[#10172F] border border-white/10 rounded-xl px-3 py-2 text-white"
-                />
-                <input
-                  type="number"
-                  required
-                  value={newPropAmount}
-                  onChange={(e) => setNewPropAmount(Number(e.target.value))}
-                  placeholder="Quotation Amount ($)"
-                  className="bg-[#10172F] border border-white/10 rounded-xl px-3 py-2 text-white font-mono"
-                />
+        {/* TAB 3: ADVANCED ANALYTICS & CSV REPORTS */}
+        {activeSection === 'analytics' && analyticsData && (
+          <div className="space-y-8 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div className="glass-panel p-6 rounded-2xl border border-cyan-400/30 space-y-2">
+                <span className="text-slate-400">CRM Lead Conversion Rate</span>
+                <div className="text-3xl font-extrabold text-cyan-400">{analyticsData.conversionRate}</div>
+                <span className="text-[10px] text-slate-400">Leads Converted to Active Clients</span>
+              </div>
+
+              <div className="glass-panel p-6 rounded-2xl border border-purple-400/30 space-y-2">
+                <span className="text-slate-400">Proposal Acceptance Rate</span>
+                <div className="text-3xl font-extrabold text-purple-400">{analyticsData.proposalAcceptanceRate}</div>
+                <span className="text-[10px] text-slate-400">Quotations Accepted by Clients</span>
+              </div>
+
+              <div className="glass-panel p-6 rounded-2xl border border-emerald-400/30 space-y-2">
+                <span className="text-slate-400">Academy Quiz Pass Rate</span>
+                <div className="text-3xl font-extrabold text-emerald-400">{analyticsData.quizPassRate}</div>
+                <span className="text-[10px] text-slate-400">Passed Assessment Attempts</span>
+              </div>
+            </div>
+
+            <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-white/10 space-y-4 bg-[#151F40]/90">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-cyan-400" /> Exportable Operational Reports
+                </h3>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <button
-                  type="submit"
-                  disabled={creatingProp}
-                  className="sm:col-span-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-semibold rounded-xl transition-all shadow-md disabled:opacity-50"
+                  onClick={() => handleExportCSV('leads')}
+                  className="p-4 rounded-2xl bg-[#10172F] border border-white/10 hover:border-cyan-400 text-left space-y-1 transition-all"
                 >
-                  {creatingProp ? 'Generating...' : 'Dispatch Proposal & Quotation'}
+                  <strong className="text-white block text-sm flex items-center justify-between">
+                    Leads Pipeline CSV <Download className="w-4 h-4 text-cyan-400" />
+                  </strong>
+                  <span className="text-slate-400 text-[11px]">Export full CRM leads data.</span>
                 </button>
-              </form>
+
+                <button
+                  onClick={() => handleExportCSV('tickets')}
+                  className="p-4 rounded-2xl bg-[#10172F] border border-white/10 hover:border-purple-400 text-left space-y-1 transition-all"
+                >
+                  <strong className="text-white block text-sm flex items-center justify-between">
+                    Support Tickets CSV <Download className="w-4 h-4 text-purple-400" />
+                  </strong>
+                  <span className="text-slate-400 text-[11px]">Export service desk ticket queue.</span>
+                </button>
+
+                <button
+                  onClick={() => handleExportCSV('financials')}
+                  className="p-4 rounded-2xl bg-[#10172F] border border-white/10 hover:border-amber-400 text-left space-y-1 transition-all"
+                >
+                  <strong className="text-white block text-sm flex items-center justify-between">
+                    Project Financials CSV <Download className="w-4 h-4 text-amber-400" />
+                  </strong>
+                  <span className="text-slate-400 text-[11px]">Export contract budget values.</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: CENTRALIZED SYSTEM SETTINGS */}
+        {activeSection === 'settings' && systemSettings && (
+          <div className="space-y-8 max-w-4xl mx-auto text-xs">
+            {settingsSavedMsg && (
+              <div className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0" /> {settingsSavedMsg}
+              </div>
+            )}
+
+            {/* General Settings */}
+            <CardTilt className="glass-panel p-6 sm:p-8 rounded-3xl border border-white/10 space-y-4 bg-[#151F40]/90">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
+                <Settings className="w-4 h-4 text-cyan-400" /> General Platform Configuration
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-slate-400 mb-1 block">Company Name</label>
+                  <input
+                    type="text"
+                    value={systemSettings.general.companyName}
+                    onChange={(e) => setSystemSettings({ ...systemSettings, general: { ...systemSettings.general, companyName: e.target.value } })}
+                    className="w-full bg-[#10172F] border border-white/10 rounded-xl px-3 py-2 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-400 mb-1 block">Website Title</label>
+                  <input
+                    type="text"
+                    value={systemSettings.general.websiteTitle}
+                    onChange={(e) => setSystemSettings({ ...systemSettings, general: { ...systemSettings.general, websiteTitle: e.target.value } })}
+                    className="w-full bg-[#10172F] border border-white/10 rounded-xl px-3 py-2 text-white"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={() => handleSaveSettingsCategory('general', systemSettings.general)}
+                className="px-5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-semibold rounded-xl"
+              >
+                Save General Settings
+              </button>
             </CardTilt>
 
-            <div className="space-y-4 max-w-4xl mx-auto">
-              {proposals.map((prop) => (
-                <div key={prop.id} className="glass-panel p-6 rounded-3xl border border-white/10 space-y-3 bg-[#151F40]/90 text-xs">
-                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                    <div>
-                      <span className="text-cyan-400 font-mono font-bold text-xs">{prop.id}</span>
-                      <h4 className="text-base font-bold text-white">{prop.title}</h4>
-                      <span className="text-slate-400 text-[11px]">{prop.clientName} ({prop.clientEmail})</span>
-                    </div>
-                    <div className="text-right font-mono">
-                      <span className="text-amber-400 font-extrabold text-base block">${prop.totalAmountUSD.toLocaleString()} USD</span>
-                      <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30 text-[10px]">{prop.status}</span>
-                    </div>
+            {/* AI Engine Settings */}
+            <CardTilt className="glass-panel p-6 sm:p-8 rounded-3xl border border-cyan-500/30 space-y-4 bg-[#151F40]/90">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
+                <Bot className="w-4 h-4 text-cyan-400" /> AI Engine &amp; Gemini Model Configuration
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-slate-400 mb-1 block">Model Name</label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={systemSettings.ai.modelName}
+                    className="w-full bg-[#10172F] border border-white/10 rounded-xl px-3 py-2 text-cyan-400 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-400 mb-1 block">Max Output Tokens</label>
+                  <input
+                    type="number"
+                    value={systemSettings.ai.maxTokens}
+                    onChange={(e) => setSystemSettings({ ...systemSettings, ai: { ...systemSettings.ai, maxTokens: Number(e.target.value) } })}
+                    className="w-full bg-[#10172F] border border-white/10 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-400 mb-1 block">Temperature</label>
+                  <input
+                    type="number"
+                    step={0.1}
+                    value={systemSettings.ai.temperature}
+                    onChange={(e) => setSystemSettings({ ...systemSettings, ai: { ...systemSettings.ai, temperature: Number(e.target.value) } })}
+                    className="w-full bg-[#10172F] border border-white/10 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={() => handleSaveSettingsCategory('ai', systemSettings.ai)}
+                className="px-5 py-2 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 text-white font-semibold rounded-xl"
+              >
+                Save AI Settings
+              </button>
+            </CardTilt>
+          </div>
+        )}
+
+        {/* TAB 5: SYSTEM HEALTH & MONITORING */}
+        {activeSection === 'health' && systemHealth && (
+          <div className="space-y-6 text-xs max-w-4xl mx-auto">
+            <div className="glass-panel p-8 rounded-3xl border border-emerald-400/30 space-y-6 bg-[#151F40]/90">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-emerald-400" /> Operational System Health &amp; Monitoring
+                </h3>
+                <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/40 rounded-full">
+                  {systemHealth.status}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-4 rounded-2xl bg-[#10172F] border border-white/10 space-y-1">
+                  <span className="text-slate-400">API Gateway Status</span>
+                  <strong className="text-white block text-sm">{systemHealth.apiGateway}</strong>
+                </div>
+                <div className="p-4 rounded-2xl bg-[#10172F] border border-white/10 space-y-1">
+                  <span className="text-slate-400">Backend Uptime</span>
+                  <strong className="text-white block text-sm">{systemHealth.backendUptime}</strong>
+                </div>
+                <div className="p-4 rounded-2xl bg-[#10172F] border border-white/10 space-y-1">
+                  <span className="text-slate-400">Google Gemini 2.5 Flash API</span>
+                  <strong className="text-cyan-400 block text-sm">{systemHealth.geminiApi?.status} ({systemHealth.geminiApi?.model})</strong>
+                </div>
+                <div className="p-4 rounded-2xl bg-[#10172F] border border-white/10 space-y-1">
+                  <span className="text-slate-400">Vector Database</span>
+                  <strong className="text-purple-400 block text-sm">{systemHealth.database}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6: SECURITY AUDIT LOGS */}
+        {activeSection === 'audit' && (
+          <div className="glass-panel rounded-3xl border border-white/10 overflow-hidden bg-[#151F40]/90 text-xs">
+            <div className="px-6 py-4 border-b border-white/10 text-xs font-semibold uppercase tracking-wider text-slate-400 flex justify-between">
+              <span>Audit Action &amp; Target</span>
+              <span>Actor &amp; Outcome</span>
+            </div>
+            <div className="divide-y divide-white/5 max-h-[500px] overflow-y-auto">
+              {auditLogs.map((log) => (
+                <div key={log.id} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-white/5 transition-colors">
+                  <div className="space-y-0.5">
+                    <strong className="text-white text-sm block">{log.action} — {log.targetEntity}</strong>
+                    <span className="text-slate-300 text-[11px]">{log.details}</span>
                   </div>
-                  <p className="text-slate-300 text-xs leading-relaxed">{prop.scopeSummary}</p>
+                  <div className="text-right font-mono text-[11px]">
+                    <span className="text-cyan-400 block">{log.actorName} ({log.actorEmail})</span>
+                    <span className="text-slate-400">{new Date(log.timestamp).toLocaleString()}</span>
+                  </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB: CRM LEADS */}
+        {activeSection === 'leads' && (
+          <div className="space-y-6 text-xs">
+            <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-3 bg-[#151F40]">
+              <h3 className="text-sm font-bold text-white">Active CRM Leads</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {leads.map((l) => (
+                  <div key={l.id} className="p-4 rounded-2xl bg-[#10172F] border border-white/10 space-y-2">
+                    <div className="flex items-center justify-between font-mono text-[10px]">
+                      <span className="text-cyan-400 font-bold">{l.id}</span>
+                      <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded font-bold">{l.status}</span>
+                    </div>
+                    <strong className="text-white block text-sm">{l.contactName} ({l.companyName})</strong>
+                    <p className="text-slate-300">{l.description}</p>
+                    <div className="flex items-center justify-between pt-2 border-t border-white/5 font-mono text-amber-400">
+                      <span>{l.budgetRange}</span>
+                      <button onClick={() => handleConvertLead(l.id)} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg">
+                        Convert
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
 
         {/* TAB: ACTIVE PROJECTS */}
         {activeSection === 'projects' && (
-          <div className="space-y-6">
+          <div className="space-y-6 text-xs">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {projects.map((p) => (
-                <div key={p.id} className="glass-panel p-6 sm:p-7 rounded-3xl border border-white/10 space-y-4 bg-[#151F40]/90 text-xs">
-                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                    <div>
-                      <span className="text-cyan-400 font-mono text-xs font-bold">{p.id}</span>
-                      <h3 className="text-base font-bold text-white">{p.title}</h3>
-                    </div>
-                    <span className="px-2.5 py-1 rounded-full bg-cyan-400/10 border border-cyan-400/30 text-cyan-400 font-bold text-[10px]">
-                      {p.status}
-                    </span>
+                <div key={p.id} className="glass-panel p-6 rounded-3xl border border-white/10 space-y-3 bg-[#151F40]/90">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                    <span className="text-cyan-400 font-mono font-bold">{p.id}</span>
+                    <span className="px-2.5 py-0.5 bg-cyan-400/10 border border-cyan-400/30 text-cyan-400 rounded-full font-bold text-[10px]">{p.status}</span>
                   </div>
-
-                  <p className="text-slate-300 leading-relaxed">{p.description}</p>
-
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs text-slate-300">
-                      <span>Milestones Completion</span>
-                      <span className="font-bold text-cyan-400 font-mono">{p.progressPercentage}%</span>
-                    </div>
-                    <div className="w-full bg-[#10172F] h-2 rounded-full overflow-hidden border border-white/10">
-                      <div className="bg-gradient-to-r from-blue-600 to-cyan-400 h-full rounded-full" style={{ width: `${p.progressPercentage}%` }} />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-white/10 font-mono">
-                    <span>Manager: <strong className="text-slate-200">{p.projectManager}</strong></span>
-                    <span className="text-amber-400 font-bold">${p.budgetUSD.toLocaleString()} USD</span>
+                  <h3 className="text-sm font-bold text-white">{p.title}</h3>
+                  <p className="text-slate-300">{p.description}</p>
+                  <div className="flex items-center justify-between pt-2 border-t border-white/10 text-slate-400 font-mono">
+                    <span>Manager: {p.projectManager}</span>
+                    <span className="text-amber-400 font-bold">${p.budgetUSD?.toLocaleString()} USD</span>
                   </div>
                 </div>
               ))}
             </div>
           </div>
         )}
+
+        {/* TAB: SUPPORT DESK */}
+        {activeSection === 'tickets' && (
+          <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-4 bg-[#151F40]/90 text-xs">
+            <h3 className="text-sm font-bold text-white">Service Desk Queue ({tickets.length})</h3>
+            <div className="space-y-3">
+              {tickets.map((t) => (
+                <div key={t.id} className="p-4 rounded-2xl bg-[#10172F] border border-white/10 flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-cyan-400 font-mono font-bold">{t.id}</span>
+                      <strong className="text-white">{t.subject}</strong>
+                    </div>
+                    <span className="text-slate-400 text-[11px]">{t.customerName} ({t.customerEmail})</span>
+                  </div>
+                  <span className="px-2.5 py-1 bg-amber-500/20 text-amber-300 font-mono font-bold border border-amber-500/30 rounded-lg">{t.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* EDIT USER ROLE MODAL */}
+        <AnimatePresence>
+          {selectedUserToEdit && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+              <div className="glass-panel w-full max-w-md rounded-3xl border border-purple-400/40 bg-[#151F40] p-6 space-y-4 text-xs">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <h3 className="text-sm font-bold text-white">Modify User Access Role</h3>
+                  <button onClick={() => setSelectedUserToEdit(null)} className="text-slate-400 hover:text-white">✕</button>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-slate-400 block text-[10px]">User Name:</span>
+                    <strong className="text-white">{selectedUserToEdit.name} ({selectedUserToEdit.email})</strong>
+                  </div>
+
+                  <div>
+                    <label className="text-slate-400 mb-1 block">Assign Role</label>
+                    <select
+                      value={selectedUserNewRole}
+                      onChange={(e) => setSelectedUserNewRole(e.target.value as SystemRole)}
+                      className="w-full bg-[#10172F] border border-white/10 rounded-xl px-3 py-2 text-white"
+                    >
+                      <option>Student</option>
+                      <option>Instructor</option>
+                      <option>Sales Representative</option>
+                      <option>Sales Manager</option>
+                      <option>Project Manager</option>
+                      <option>Academy Admin</option>
+                      <option>Admin</option>
+                      <option>Super Admin</option>
+                      <option>Owner</option>
+                    </select>
+                  </div>
+
+                  <button
+                    onClick={() => handleUpdateUserRole(selectedUserToEdit.id, selectedUserNewRole)}
+                    className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-semibold rounded-xl shadow-md transition-all"
+                  >
+                    Update User Role
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </AnimatePresence>
 
       </div>
     </div>

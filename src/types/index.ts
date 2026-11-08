@@ -487,5 +487,80 @@ export interface CRMActivityLog {
   details: string;
 }
 
+// ----------------------------------------------------
+// SYSTEM SETTINGS, USER MANAGEMENT & AUDIT LOGS
+// ----------------------------------------------------
+export type SystemRole =
+  | 'Owner'
+  | 'Super Admin'
+  | 'Admin'
+  | 'Academy Admin'
+  | 'Instructor'
+  | 'Student'
+  | 'Sales Manager'
+  | 'Sales Representative'
+  | 'Project Manager'
+  | 'Team Member'
+  | 'Client';
+
+export interface SystemUserRecord {
+  id: string;
+  name: string;
+  email: string;
+  role: SystemRole;
+  status: 'Active' | 'Suspended';
+  createdAt: string;
+  lastLoginAt?: string;
+  avatar?: string;
+}
+
+export interface SystemSettings {
+  general: {
+    companyName: string;
+    websiteTitle: string;
+    defaultLanguage: string;
+    timezone: string;
+    dateFormat: string;
+    maintenanceMode: boolean;
+  };
+  academy: {
+    autoApproveCourses: boolean;
+    passScoreDefault: number;
+    certificatePrefix: string;
+  };
+  crm: {
+    quoteExpiryDays: number;
+    defaultLeadAssignedRep: string;
+  };
+  support: {
+    slaP1Minutes: number;
+    slaP2Hours: number;
+    slaP3Hours: number;
+    autoAssignStaff: boolean;
+  };
+  ai: {
+    modelName: string;
+    maxTokens: number;
+    temperature: number;
+  };
+  security: {
+    rateLimitRequestsPerMin: number;
+    sessionTimeoutMinutes: number;
+    auditLogEnabled: boolean;
+  };
+}
+
+export interface SystemAuditLog {
+  id: string;
+  timestamp: string;
+  actorName: string;
+  actorEmail: string;
+  action: string;
+  targetEntity: string;
+  outcome: 'Success' | 'Denied' | 'Failed';
+  details: string;
+}
+
+
 
 

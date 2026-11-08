@@ -2893,6 +2893,329 @@ Provide:
   }
 });
 
+// ----------------------------------------------------
+// OWNER COMMAND CENTER, USER & ROLE MANAGEMENT & SETTINGS
+// ----------------------------------------------------
+
+interface SystemUserRecord {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: 'Active' | 'Suspended';
+  createdAt: string;
+  lastLoginAt?: string;
+  avatar?: string;
+}
+
+interface SystemAuditLogRecord {
+  id: string;
+  timestamp: string;
+  actorName: string;
+  actorEmail: string;
+  action: string;
+  targetEntity: string;
+  outcome: 'Success' | 'Denied' | 'Failed';
+  details: string;
+}
+
+const systemUsersStore: SystemUserRecord[] = [
+  {
+    id: 'usr-owner-01',
+    name: 'Marcus Thorne',
+    email: 'admin@nexusai.com',
+    role: 'Owner',
+    status: 'Active',
+    createdAt: new Date(Date.now() - 86400000 * 180).toISOString(),
+    lastLoginAt: new Date().toISOString(),
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80'
+  },
+  {
+    id: 'usr-inst-01',
+    name: 'Dr. Evelyn Sterling',
+    email: 'evelyn@nexusai.com',
+    role: 'Instructor',
+    status: 'Active',
+    createdAt: new Date(Date.now() - 86400000 * 120).toISOString(),
+    lastLoginAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'
+  },
+  {
+    id: 'usr-inst-02',
+    name: 'Kaelen Vance',
+    email: 'kaelen@nexusai.com',
+    role: 'Instructor',
+    status: 'Active',
+    createdAt: new Date(Date.now() - 86400000 * 90).toISOString(),
+    lastLoginAt: new Date(Date.now() - 3600000 * 5).toISOString(),
+  },
+  {
+    id: 'usr-inst-03',
+    name: 'Sarah Chen',
+    email: 'sarah.chen@nexusai.com',
+    role: 'Admin',
+    status: 'Active',
+    createdAt: new Date(Date.now() - 86400000 * 80).toISOString(),
+    lastLoginAt: new Date(Date.now() - 3600000 * 1).toISOString(),
+  },
+  {
+    id: 'usr-stud-01',
+    name: 'Alex Rivera',
+    email: 'alex.rivera@nexusai.com',
+    role: 'Student',
+    status: 'Active',
+    createdAt: new Date(Date.now() - 86400000 * 30).toISOString(),
+    lastLoginAt: new Date().toISOString(),
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'
+  },
+  {
+    id: 'usr-cli-01',
+    name: 'Elena Rostova',
+    email: 'elena@biomedx.org',
+    role: 'Client',
+    status: 'Active',
+    createdAt: new Date(Date.now() - 86400000 * 45).toISOString(),
+    lastLoginAt: new Date(Date.now() - 86400000 * 1).toISOString(),
+  }
+];
+
+const systemSettingsStore = {
+  general: {
+    companyName: 'Nexus AI Academic & Solutions',
+    websiteTitle: 'Nexus AI — Autonomous Technology Institute',
+    defaultLanguage: 'English',
+    timezone: 'EST (Eastern Standard Time)',
+    dateFormat: 'YYYY-MM-DD',
+    maintenanceMode: false
+  },
+  academy: {
+    autoApproveCourses: false,
+    passScoreDefault: 75,
+    certificatePrefix: 'NEXUS-CERT'
+  },
+  crm: {
+    quoteExpiryDays: 14,
+    defaultLeadAssignedRep: 'Marcus Thorne'
+  },
+  support: {
+    slaP1Minutes: 15,
+    slaP2Hours: 2,
+    slaP3Hours: 24,
+    autoAssignStaff: true
+  },
+  ai: {
+    modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+    maxTokens: 4096,
+    temperature: 0.2
+  },
+  security: {
+    rateLimitRequestsPerMin: 100,
+    sessionTimeoutMinutes: 120,
+    auditLogEnabled: true
+  }
+};
+
+const systemAuditLogsStore: SystemAuditLogRecord[] = [
+  {
+    id: 'aud-101',
+    timestamp: new Date().toISOString(),
+    actorName: 'Marcus Thorne',
+    actorEmail: 'admin@nexusai.com',
+    action: 'System Settings Updated',
+    targetEntity: 'System Configuration',
+    outcome: 'Success',
+    details: 'Configured Gemini 2.5 Flash model and SLA targets.'
+  },
+  {
+    id: 'aud-102',
+    timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
+    actorName: 'Marcus Thorne',
+    actorEmail: 'admin@nexusai.com',
+    action: 'User Role Verified',
+    targetEntity: 'Alex Rivera (Student)',
+    outcome: 'Success',
+    details: 'Verified active student cohort status.'
+  }
+];
+
+// 1. Executive Command Center Aggregation API
+app.get('/api/admin/command-center', (_req: Request, res: Response) => {
+  res.json({
+    metrics: {
+      registeredUsers: systemUsersStore.length,
+      activeUsers: systemUsersStore.filter(u => u.status === 'Active').length,
+      enrolledStudents: enrollments.length,
+      coursesPublished: Object.keys(lmsModulesStore).length,
+      crmLeadsCount: crmLeadsStore.length,
+      activeClientsCount: clientsStore.length,
+      activeProjectsCount: projectsStore.length,
+      completedProjectsCount: projectsStore.filter(p => p.status === 'Completed').length,
+      pendingProposalsCount: proposalsStore.filter(p => p.status === 'Sent').length,
+      ticketsOpenCount: ticketsStore.filter(t => t.status === 'Open').length,
+      ticketsEscalatedCount: ticketsStore.filter(t => t.status === 'Escalated').length,
+      documentsCount: documentsStore.length,
+      totalRevenueUSD: projectsStore.reduce((acc, p) => acc + p.budgetUSD, 0)
+    },
+    recentActivities: systemAuditLogsStore.slice(0, 10),
+    systemHealth: {
+      status: 'Operational',
+      uptimeHours: 720,
+      geminiConfigured: isValidApiKey
+    }
+  });
+});
+
+// 2. Interactive Analytics API
+app.get('/api/admin/analytics', (req: Request, res: Response) => {
+  const range = (req.query.range as string) || '30d';
+
+  // Calculate real rates from database stores
+  const leadTotal = crmLeadsStore.length || 1;
+  const leadConverted = crmLeadsStore.filter(l => l.status === 'Converted').length;
+  const conversionRate = Math.round((leadConverted / leadTotal) * 100);
+
+  const proposalTotal = proposalsStore.length || 1;
+  const proposalAccepted = proposalsStore.filter(p => p.status === 'Accepted').length;
+  const proposalAcceptanceRate = Math.round((proposalAccepted / proposalTotal) * 100);
+
+  const quizTotal = lmsQuizAttemptsStore.length || 1;
+  const quizPassed = lmsQuizAttemptsStore.filter(a => a.passed).length;
+  const quizPassRate = Math.round((quizPassed / quizTotal) * 100);
+
+  res.json({
+    range,
+    conversionRate: `${conversionRate}%`,
+    proposalAcceptanceRate: `${proposalAcceptanceRate}%`,
+    quizPassRate: `${quizPassRate}%`,
+    enrollmentTrend: [
+      { month: 'Sep', count: 120 },
+      { month: 'Oct', count: 180 },
+      { month: 'Nov', count: 240 }
+    ],
+    ticketsByPriority: {
+      P1: ticketsStore.filter(t => t.priority.includes('P1')).length,
+      P2: ticketsStore.filter(t => t.priority.includes('P2')).length,
+      P3: ticketsStore.filter(t => t.priority.includes('P3')).length,
+      P4: ticketsStore.filter(t => t.priority.includes('P4')).length
+    }
+  });
+});
+
+// 3. User Directory & Role Management API
+app.get('/api/admin/users', (_req: Request, res: Response) => {
+  res.json({ users: systemUsersStore });
+});
+
+app.patch('/api/admin/users/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { role, status, actorRole } = req.body;
+
+  // Server-side RBAC restriction: Only Owner or Super Admin can modify privileged roles
+  const target = systemUsersStore.find(u => u.id === id);
+  if (!target) return res.status(404).json({ error: 'User not found.' });
+
+  if (role && (role === 'Owner' || role === 'Super Admin' || target.role === 'Owner')) {
+    if (actorRole !== 'Owner' && actorRole !== 'Super Admin') {
+      systemAuditLogsStore.unshift({
+        id: `aud-${Date.now().toString().slice(-4)}`,
+        timestamp: new Date().toISOString(),
+        actorName: 'Unauthorized Actor',
+        actorEmail: 'unknown',
+        action: 'Privileged Role Modification Denied',
+        targetEntity: target.name,
+        outcome: 'Denied',
+        details: 'Attempted to modify Owner/Super Admin role without sufficient privilege.'
+      });
+      return res.status(403).json({ error: 'Permission denied: Only Owner or Super Admin can assign privileged roles.' });
+    }
+  }
+
+  if (role) target.role = role;
+  if (status) target.status = status;
+
+  systemAuditLogsStore.unshift({
+    id: `aud-${Date.now().toString().slice(-4)}`,
+    timestamp: new Date().toISOString(),
+    actorName: 'Marcus Thorne',
+    actorEmail: 'admin@nexusai.com',
+    action: `User Updated (${role || target.role}, ${status || target.status})`,
+    targetEntity: target.name,
+    outcome: 'Success',
+    details: `Updated user ${target.name} (${target.email})`
+  });
+
+  res.json({ success: true, user: target });
+});
+
+// 4. Centralized System Settings API
+app.get('/api/admin/settings', (_req: Request, res: Response) => {
+  res.json({ settings: systemSettingsStore });
+});
+
+app.patch('/api/admin/settings', (req: Request, res: Response) => {
+  const { category, updates } = req.body;
+
+  if (category && systemSettingsStore[category as keyof typeof systemSettingsStore]) {
+    Object.assign(systemSettingsStore[category as keyof typeof systemSettingsStore], updates);
+  }
+
+  systemAuditLogsStore.unshift({
+    id: `aud-${Date.now().toString().slice(-4)}`,
+    timestamp: new Date().toISOString(),
+    actorName: 'Marcus Thorne',
+    actorEmail: 'admin@nexusai.com',
+    action: 'System Settings Modified',
+    targetEntity: category || 'General Settings',
+    outcome: 'Success',
+    details: `Updated settings category: ${category}`
+  });
+
+  res.json({ success: true, settings: systemSettingsStore });
+});
+
+// 5. System Health Monitoring API
+app.get('/api/admin/health', (_req: Request, res: Response) => {
+  res.json({
+    status: 'Operational',
+    timestamp: new Date().toISOString(),
+    apiGateway: 'Healthy (HTTP 200)',
+    backendUptime: '100% (720h)',
+    geminiApi: {
+      status: isValidApiKey ? 'Operational (Connected)' : 'Pending (API Key required)',
+      model: process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+    },
+    database: 'In-Memory Enterprise Shards (Active)',
+    documentsCount: documentsStore.length,
+    ticketsOpen: ticketsStore.filter(t => t.status === 'Open').length
+  });
+});
+
+// 6. Security Audit Logs API
+app.get('/api/admin/audit-logs', (_req: Request, res: Response) => {
+  res.json({ auditLogs: systemAuditLogsStore });
+});
+
+// 7. CSV Export API
+app.get('/api/admin/export/:type', (req: Request, res: Response) => {
+  const { type } = req.params;
+
+  let csvContent = '';
+  if (type === 'leads') {
+    csvContent = 'ID,ContactName,CompanyName,Email,Service,Budget,Status\n' +
+      crmLeadsStore.map(l => `"${l.id}","${l.contactName}","${l.companyName}","${l.email}","${l.requiredService}","${l.budgetRange}","${l.status}"`).join('\n');
+  } else if (type === 'tickets') {
+    csvContent = 'ID,CustomerName,Email,Category,Priority,Status\n' +
+      ticketsStore.map(t => `"${t.id}","${t.customerName}","${t.customerEmail}","${t.category}","${t.priority}","${t.status}"`).join('\n');
+  } else {
+    csvContent = 'Type,ID,Name,ValueUSD\n' +
+      projectsStore.map(p => `"Project","${p.id}","${p.title}",${p.budgetUSD}`).join('\n');
+  }
+
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename=nexus_admin_export_${type}.csv`);
+  res.send(csvContent);
+});
+
 // 404 Catch-All Handler for API Routes (prevents returning HTML for API calls)
 app.use('/api/*', (_req: Request, res: Response) => {
   res.setHeader('Content-Type', 'application/json');
