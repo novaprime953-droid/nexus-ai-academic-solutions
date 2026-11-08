@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { COURSES, AI_TOOLS } from '../data/mockData';
+import { GNRC_COURSES } from '../data/gnrcData';
 import { CardTilt } from '../components/CardTilt';
 import { safeFetchJson } from '../utils/api';
 import { motion, AnimatePresence } from 'motion/react';
@@ -20,7 +21,8 @@ import {
   SystemUserRecord,
   SystemRole,
   SystemSettings,
-  SystemAuditLog
+  SystemAuditLog,
+  GNRCAdmissionApplication
 } from '../types';
 import {
   Users,
@@ -60,7 +62,9 @@ import {
   UserX,
   FileSpreadsheet,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  GraduationCap,
+  Building
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -70,7 +74,7 @@ interface AdminDashboardProps {
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) => {
   const { user } = useAuth();
   const [activeSection, setActiveSection] = useState<
-    'overview' | 'users' | 'analytics' | 'settings' | 'health' | 'audit' | 'leads' | 'clients' | 'proposals' | 'projects' | 'tickets' | 'inquiries'
+    'overview' | 'gnrc' | 'users' | 'analytics' | 'settings' | 'health' | 'audit' | 'leads' | 'clients' | 'proposals' | 'projects' | 'tickets' | 'inquiries'
   >('overview');
 
   // Command Center Overview State
@@ -80,6 +84,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
   const [auditLogs, setAuditLogs] = useState<SystemAuditLog[]>([]);
   const [systemHealth, setSystemHealth] = useState<any>(null);
+
+  // GNRC Admissions State
+  const [gnrcAdmissions, setGnrcAdmissions] = useState<GNRCAdmissionApplication[]>([]);
+  const [selectedGnrcApp, setSelectedGnrcApp] = useState<GNRCAdmissionApplication | null>(null);
+  const [gnrcFilterStatus, setGnrcFilterStatus] = useState<string>('All');
+  const [gnrcAdminNoteInput, setGnrcAdminNoteInput] = useState<string>('');
 
   // Users Filter & Edit State
   const [userSearch, setUserSearch] = useState('');
@@ -126,7 +136,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   const [settingsSavedMsg, setSettingsSavedMsg] = useState<string | null>(null);
 
   const fetchCommandCenterData = async () => {
-    const [cmdRes, anaRes, usrRes, setRes, audRes, hltRes, lRes, cRes, pRes, prjRes, inqRes, tRes] = await Promise.all([
+    const [cmdRes, anaRes, usrRes, setRes, audRes, hltRes, lRes, cRes, pRes, prjRes, inqRes, tRes, gnrcRes] = await Promise.all([
       safeFetchJson('/api/admin/command-center'),
       safeFetchJson('/api/admin/analytics?range=30d'),
       safeFetchJson('/api/admin/users'),
@@ -138,7 +148,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
       safeFetchJson('/api/crm/proposals'),
       safeFetchJson('/api/crm/projects'),
       safeFetchJson('/api/inquiries'),
-      safeFetchJson('/api/tickets?role=admin')
+      safeFetchJson('/api/tickets?role=admin'),
+      safeFetchJson('/api/gnrc/admissions')
     ]);
 
     if (cmdRes.success) setCommandData(cmdRes.data);
@@ -153,11 +164,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
     if (prjRes.success) setProjects(prjRes.data?.projects || []);
     if (inqRes.success) setInquiries(inqRes.data?.inquiries || []);
     if (tRes.success) setTickets(tRes.data?.tickets || []);
+    if (gnrcRes.success) setGnrcAdmissions(gnrcRes.data?.admissions || []);
   };
 
   useEffect(() => {
     fetchCommandCenterData();
   }, []);
+
+  const handleUpdateGnrcStatus = async (appId: string, status: string, assignedInstructor?: string, feeStatus?: string) => {
+    const res = await safeFetchJson(`/api/gnrc/admissions/${appId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, adminNotes: gnrcAdminNoteInput, assignedInstructor, feeStatus })
+    });
+    if (res.success) {
+      setGnrcAdminNoteInput('');
+      fetchCommandCenterData();
+    }
+  };
+
+  const handleConvertGnrcAdmission = async (appId: string) => {
+    const res = await safeFetchJson(`/api/gnrc/admissions/${appId}/convert`, { method: 'POST' });
+    if (res.success) {
+      fetchCommandCenterData();
+    }
+  };
 
   const handleUpdateUserRole = async (userId: string, newRole: SystemRole, status?: 'Active' | 'Suspended') => {
     const res = await safeFetchJson(`/api/admin/users/${userId}`, {
@@ -295,6 +325,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
     return matchesSearch && matchesRole;
   });
 
+  const filteredGnrcApps = gnrcAdmissions.filter(a => gnrcFilterStatus === 'All' || a.status === gnrcFilterStatus);
+
   return (
     <div className="min-h-screen bg-[#101A3B]/60 text-white py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -319,18 +351,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
           <div className="flex items-center gap-3">
             <button
+              onClick={() => onNavigate('gnrc')}
+              className="px-3.5 py-2 bg-yellow-400 hover:bg-yellow-300 text-slate-900 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors shadow-md"
+            >
+              <GraduationCap className="w-4 h-4" />
+              <span>GNRC Institute</span>
+            </button>
+            <button
               onClick={() => handleExportCSV('leads')}
               className="px-3.5 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span>Export CSV</span>
-            </button>
-            <button
-              onClick={() => onNavigate('knowledge-admin')}
-              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-md shadow-purple-600/25 transition-all"
-            >
-              <Database className="w-3.5 h-3.5" />
-              <span>Knowledge Brain</span>
             </button>
             <button
               onClick={fetchCommandCenterData}
@@ -346,6 +378,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
         <div className="flex gap-2 border-b border-white/10 pb-4 overflow-x-auto text-xs font-medium">
           {[
             { id: 'overview', label: 'Owner Command Center' },
+            { id: 'gnrc', label: `GNRC Institute Admissions (${gnrcAdmissions.length})` },
             { id: 'users', label: `Users & Roles (${usersList.length})` },
             { id: 'analytics', label: 'Advanced Analytics' },
             { id: 'settings', label: 'System Settings' },
@@ -368,6 +401,178 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             </button>
           ))}
         </div>
+
+        {/* TAB: GNRC INSTITUTE MANAGEMENT */}
+        {activeSection === 'gnrc' && (
+          <div className="space-y-8 text-xs">
+            {/* Overview Stat Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="glass-panel p-6 rounded-2xl border border-yellow-400/30 space-y-2 bg-[#151F40]/90">
+                <span className="text-slate-400">GNRC Admission Applications</span>
+                <div className="text-3xl font-extrabold text-yellow-400">{gnrcAdmissions.length}</div>
+                <span className="text-[10px] text-emerald-400 font-semibold">{gnrcAdmissions.filter(a => a.status === 'Approved').length} Approved Candidates</span>
+              </div>
+
+              <div className="glass-panel p-6 rounded-2xl border border-cyan-400/30 space-y-2 bg-[#151F40]/90">
+                <span className="text-slate-400">GNRC 44 Programs Catalog</span>
+                <div className="text-3xl font-extrabold text-cyan-400">{GNRC_COURSES.length} Courses</div>
+                <span className="text-[10px] text-slate-400">8 Computer Education Categories</span>
+              </div>
+
+              <div className="glass-panel p-6 rounded-2xl border border-emerald-400/30 space-y-2 bg-[#151F40]/90">
+                <span className="text-slate-400">Enrolled Students</span>
+                <div className="text-3xl font-extrabold text-emerald-400">{gnrcAdmissions.filter(a => a.status === 'Enrolled').length}</div>
+                <span className="text-[10px] text-emerald-400 font-semibold">Active Lab Cohort 2026</span>
+              </div>
+
+              <div className="glass-panel p-6 rounded-2xl border border-purple-400/30 space-y-2 bg-[#151F40]/90">
+                <span className="text-slate-400">Fee Status Summary</span>
+                <div className="text-3xl font-extrabold text-purple-300">
+                  {gnrcAdmissions.filter(a => a.feeStatus === 'Installment 1 Paid' || a.feeStatus === 'Fully Paid').length} Paid
+                </div>
+                <span className="text-[10px] text-amber-400 font-semibold">{gnrcAdmissions.filter(a => a.feeStatus === 'Unpaid').length} Pending Fee</span>
+              </div>
+            </div>
+
+            {/* Split Screen Applications Queue & Action Panel */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Queue List */}
+              <div className="glass-panel p-6 rounded-3xl border border-yellow-400/30 space-y-3 lg:col-span-1 bg-[#151F40] max-h-[550px] overflow-y-auto pr-1">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <h3 className="text-xs font-bold text-yellow-400 uppercase tracking-wider">Admission Queue</h3>
+                  <select
+                    value={gnrcFilterStatus}
+                    onChange={(e) => setGnrcFilterStatus(e.target.value)}
+                    className="bg-[#10172F] border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
+                  >
+                    <option>All</option>
+                    <option>Submitted</option>
+                    <option>Under Review</option>
+                    <option>Approved</option>
+                    <option>Enrolled</option>
+                  </select>
+                </div>
+
+                {filteredGnrcApps.map((a) => (
+                  <div
+                    key={a.id}
+                    onClick={() => setSelectedGnrcApp(a)}
+                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer space-y-2 ${
+                      selectedGnrcApp?.id === a.id ? 'bg-yellow-400/20 border-yellow-400 shadow-md' : 'bg-[#10172F] border-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-[10px] font-mono">
+                      <span className="text-yellow-400 font-bold">{a.id}</span>
+                      <span className={`px-2 py-0.5 rounded font-bold ${
+                        a.status === 'Enrolled' ? 'bg-emerald-500/20 text-emerald-300' :
+                        a.status === 'Approved' ? 'bg-cyan-500/20 text-cyan-300' :
+                        'bg-amber-500/20 text-amber-300'
+                      }`}>
+                        {a.status}
+                      </span>
+                    </div>
+                    <strong className="text-white text-xs block truncate">{a.fullName}</strong>
+                    <span className="text-slate-300 text-[11px] truncate block">{a.selectedCourseTitle}</span>
+                    <span className="text-slate-400 text-[10px] block">{a.preferredClassType} · {a.phone}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Action Panel */}
+              <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-yellow-400/30 lg:col-span-2 space-y-6 bg-[#151F40]/90 flex flex-col justify-between min-h-[550px]">
+                {selectedGnrcApp ? (
+                  <>
+                    <div className="border-b border-white/10 pb-4 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <span className="text-yellow-400 font-mono text-xs font-bold">{selectedGnrcApp.id}</span>
+                          <h2 className="text-lg font-bold text-white">{selectedGnrcApp.fullName} (S/D of {selectedGnrcApp.fatherGuardianName})</h2>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={selectedGnrcApp.status}
+                            onChange={(e) => handleUpdateGnrcStatus(selectedGnrcApp.id, e.target.value)}
+                            className="bg-[#10172F] border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white"
+                          >
+                            <option>Submitted</option>
+                            <option>Under Review</option>
+                            <option>Approved</option>
+                            <option>Rejected</option>
+                            <option>Enrolled</option>
+                          </select>
+
+                          <button
+                            onClick={() => handleConvertGnrcAdmission(selectedGnrcApp.id)}
+                            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-md transition-all flex items-center gap-1 text-xs"
+                          >
+                            <Check className="w-3.5 h-3.5" /> Convert to Student Enrollment
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-[#10172F] p-3.5 rounded-2xl border border-white/10 text-[11px]">
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">Contact Phone / WhatsApp:</span>
+                          <span className="text-white font-mono">{selectedGnrcApp.phone}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">Selected Course:</span>
+                          <span className="text-yellow-400 font-bold">{selectedGnrcApp.selectedCourseTitle}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">Delivery &amp; Timing:</span>
+                          <span className="text-cyan-400">{selectedGnrcApp.preferredClassType} ({selectedGnrcApp.preferredSchedule})</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-slate-400 mb-1 block">Assign Lab Instructor</label>
+                        <select
+                          value={selectedGnrcApp.assignedInstructor || ''}
+                          onChange={(e) => handleUpdateGnrcStatus(selectedGnrcApp.id, selectedGnrcApp.status, e.target.value)}
+                          className="w-full bg-[#10172F] border border-white/10 rounded-xl px-3 py-2 text-white"
+                        >
+                          <option value="">Unassigned</option>
+                          <option value="Engr. Shahzaib Khan">Engr. Shahzaib Khan (Web &amp; React)</option>
+                          <option value="Sir Rashid Ahmed">Sir Rashid Ahmed (Office Productivity)</option>
+                          <option value="Engr. Muhammad Hamza">Engr. Muhammad Hamza (Hardware &amp; Troubleshooting)</option>
+                          <option value="Engr. Hassan Ali">Engr. Hassan Ali (Mobile Apps)</option>
+                          <option value="Sir Ali Raza">Sir Ali Raza (Game Dev)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-400 mb-1 block">Admin Admission Notes</label>
+                        <textarea
+                          rows={3}
+                          value={gnrcAdminNoteInput || selectedGnrcApp.adminNotes || ''}
+                          onChange={(e) => setGnrcAdminNoteInput(e.target.value)}
+                          placeholder="Record admission interview notes, document verification status..."
+                          className="w-full bg-[#10172F] border border-white/10 rounded-xl p-3 text-white resize-none"
+                        />
+                      </div>
+
+                      <button
+                        onClick={() => handleUpdateGnrcStatus(selectedGnrcApp.id, selectedGnrcApp.status)}
+                        className="px-5 py-2.5 bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-900 font-bold rounded-xl text-xs shadow-md"
+                      >
+                        Save Application Record
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-slate-400 space-y-3">
+                    <GraduationCap className="w-10 h-10 text-yellow-400/40" />
+                    <p className="text-xs">Select a GNRC admission application from the queue on the left to review, assign an instructor, or approve student enrollment.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* TAB 1: OWNER COMMAND CENTER OVERVIEW */}
         {activeSection === 'overview' && commandData && (
@@ -722,76 +927,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                     <span className="text-cyan-400 block">{log.actorName} ({log.actorEmail})</span>
                     <span className="text-slate-400">{new Date(log.timestamp).toLocaleString()}</span>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* TAB: CRM LEADS */}
-        {activeSection === 'leads' && (
-          <div className="space-y-6 text-xs">
-            <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-3 bg-[#151F40]">
-              <h3 className="text-sm font-bold text-white">Active CRM Leads</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {leads.map((l) => (
-                  <div key={l.id} className="p-4 rounded-2xl bg-[#10172F] border border-white/10 space-y-2">
-                    <div className="flex items-center justify-between font-mono text-[10px]">
-                      <span className="text-cyan-400 font-bold">{l.id}</span>
-                      <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded font-bold">{l.status}</span>
-                    </div>
-                    <strong className="text-white block text-sm">{l.contactName} ({l.companyName})</strong>
-                    <p className="text-slate-300">{l.description}</p>
-                    <div className="flex items-center justify-between pt-2 border-t border-white/5 font-mono text-amber-400">
-                      <span>{l.budgetRange}</span>
-                      <button onClick={() => handleConvertLead(l.id)} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg">
-                        Convert
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB: ACTIVE PROJECTS */}
-        {activeSection === 'projects' && (
-          <div className="space-y-6 text-xs">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {projects.map((p) => (
-                <div key={p.id} className="glass-panel p-6 rounded-3xl border border-white/10 space-y-3 bg-[#151F40]/90">
-                  <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                    <span className="text-cyan-400 font-mono font-bold">{p.id}</span>
-                    <span className="px-2.5 py-0.5 bg-cyan-400/10 border border-cyan-400/30 text-cyan-400 rounded-full font-bold text-[10px]">{p.status}</span>
-                  </div>
-                  <h3 className="text-sm font-bold text-white">{p.title}</h3>
-                  <p className="text-slate-300">{p.description}</p>
-                  <div className="flex items-center justify-between pt-2 border-t border-white/10 text-slate-400 font-mono">
-                    <span>Manager: {p.projectManager}</span>
-                    <span className="text-amber-400 font-bold">${p.budgetUSD?.toLocaleString()} USD</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* TAB: SUPPORT DESK */}
-        {activeSection === 'tickets' && (
-          <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-4 bg-[#151F40]/90 text-xs">
-            <h3 className="text-sm font-bold text-white">Service Desk Queue ({tickets.length})</h3>
-            <div className="space-y-3">
-              {tickets.map((t) => (
-                <div key={t.id} className="p-4 rounded-2xl bg-[#10172F] border border-white/10 flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-cyan-400 font-mono font-bold">{t.id}</span>
-                      <strong className="text-white">{t.subject}</strong>
-                    </div>
-                    <span className="text-slate-400 text-[11px]">{t.customerName} ({t.customerEmail})</span>
-                  </div>
-                  <span className="px-2.5 py-1 bg-amber-500/20 text-amber-300 font-mono font-bold border border-amber-500/30 rounded-lg">{t.status}</span>
                 </div>
               ))}
             </div>

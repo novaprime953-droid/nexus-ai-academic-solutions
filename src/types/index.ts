@@ -29,7 +29,15 @@ export type PageRoute =
   | 'community'
   | 'research'
   | 'knowledge-admin'
-  | 'knowledge-intelligence';
+  | 'knowledge-intelligence'
+  | 'gnrc'
+  | 'gnrc-courses'
+  | 'gnrc-course-detail'
+  | 'gnrc-apply'
+  | 'gnrc-admissions'
+  | 'gnrc-student-portal'
+  | 'gnrc-instructors'
+  | 'gnrc-contact';
 
 export interface User {
   id: string;
@@ -560,6 +568,69 @@ export interface SystemAuditLog {
   outcome: 'Success' | 'Denied' | 'Failed';
   details: string;
 }
+
+// ----------------------------------------------------
+// GLOBAL NEXUS RESEARCH CENTER (GNRC) INSTITUTE
+// ----------------------------------------------------
+export type GNRCCategory =
+  | 'Computer Fundamentals'
+  | 'Office Productivity'
+  | 'Typing & Communication'
+  | 'Web Development'
+  | 'App Development'
+  | 'Game Development'
+  | 'AI & Automation'
+  | 'Trading & FinTech';
+
+export interface GNRCCourse {
+  id: string;
+  title: string;
+  category: GNRCCategory;
+  duration: string;
+  feePKR?: number;
+  registrationFeePKR?: number;
+  installmentAvailable: boolean;
+  classType: 'Physical (On-Campus)' | 'Online' | 'Hybrid';
+  level: 'Beginner' | 'Intermediate' | 'Advanced' | 'Masterclass';
+  description: string;
+  learningObjectives: string[];
+  curriculumModules: { week: string; title: string; topics: string[] }[];
+  instructorName: string;
+  riskWarning?: string;
+}
+
+export interface GNRCAdmissionApplication {
+  id: string;
+  fullName: string;
+  fatherGuardianName: string;
+  phone: string;
+  whatsApp: string;
+  email: string;
+  address: string;
+  educationLevel: string;
+  selectedCourseId: string;
+  selectedCourseTitle: string;
+  preferredDuration: string;
+  preferredClassType: 'Physical (On-Campus)' | 'Online' | 'Hybrid';
+  preferredSchedule: 'Morning (9 AM - 12 PM)' | 'Afternoon (2 PM - 5 PM)' | 'Evening (6 PM - 9 PM)' | 'Weekend (Sat & Sun)';
+  previousExperience?: string;
+  status: 'Submitted' | 'Under Review' | 'Approved' | 'Rejected' | 'Enrolled';
+  appliedAt: string;
+  updatedAt: string;
+  adminNotes?: string;
+  assignedInstructor?: string;
+  feeStatus?: 'Unpaid' | 'Installment 1 Paid' | 'Fully Paid';
+}
+
+export interface GNRCPhysicalAttendanceRecord {
+  studentEmail: string;
+  courseId: string;
+  totalClasses: number;
+  attendedClasses: number;
+  attendancePercentage: number;
+  lastAttendedDate: string;
+}
+
 
 
 

@@ -2894,6 +2894,248 @@ Provide:
 });
 
 // ----------------------------------------------------
+// GLOBAL NEXUS RESEARCH CENTER (GNRC) BACKEND
+// ----------------------------------------------------
+
+interface GNRCAdmissionApplicationRecord {
+  id: string;
+  fullName: string;
+  fatherGuardianName: string;
+  phone: string;
+  whatsApp: string;
+  email: string;
+  address: string;
+  educationLevel: string;
+  selectedCourseId: string;
+  selectedCourseTitle: string;
+  preferredDuration: string;
+  preferredClassType: 'Physical (On-Campus)' | 'Online' | 'Hybrid';
+  preferredSchedule: string;
+  previousExperience?: string;
+  status: 'Submitted' | 'Under Review' | 'Approved' | 'Rejected' | 'Enrolled';
+  appliedAt: string;
+  updatedAt: string;
+  adminNotes?: string;
+  assignedInstructor?: string;
+  feeStatus?: 'Unpaid' | 'Installment 1 Paid' | 'Fully Paid';
+}
+
+interface GNRCPhysicalAttendanceRecord {
+  studentEmail: string;
+  courseId: string;
+  totalClasses: number;
+  attendedClasses: number;
+  attendancePercentage: number;
+  lastAttendedDate: string;
+}
+
+const gnrcAdmissionsStore: GNRCAdmissionApplicationRecord[] = [
+  {
+    id: 'GNRC-ADM-8492',
+    fullName: 'Muhammad Usama',
+    fatherGuardianName: 'Tariq Mehmood',
+    phone: '+92 300 1234567',
+    whatsApp: '+92 300 1234567',
+    email: 'usama@gnrc.edu.pk',
+    address: 'Circular Road, Hasilpur, Punjab, Pakistan',
+    educationLevel: 'Intermediate (FSc Pre-Engineering)',
+    selectedCourseId: 'gnrc-fullstack-web',
+    selectedCourseTitle: 'Full-Stack Web Development Diploma',
+    preferredDuration: '6 Months',
+    preferredClassType: 'Physical (On-Campus)',
+    preferredSchedule: 'Evening (6 PM - 9 PM)',
+    previousExperience: 'Basic computer operations and MS Office',
+    status: 'Approved',
+    appliedAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+    updatedAt: new Date(Date.now() - 86400000 * 1).toISOString(),
+    adminNotes: 'Application verified. Approved for Physical Lab Cohort 2026.',
+    assignedInstructor: 'Engr. Shahzaib Khan',
+    feeStatus: 'Installment 1 Paid'
+  },
+  {
+    id: 'GNRC-ADM-8493',
+    fullName: 'Ayesha Bibi',
+    fatherGuardianName: 'Muhammad Rashid',
+    phone: '+92 301 7654321',
+    whatsApp: '+92 301 7654321',
+    email: 'ayesha@gnrc.edu.pk',
+    address: 'Model Town, Hasilpur',
+    educationLevel: 'Matriculation',
+    selectedCourseId: 'gnrc-ms-office-complete',
+    selectedCourseTitle: 'Microsoft Office Complete Specialist Suite',
+    preferredDuration: '6 Months',
+    preferredClassType: 'Physical (On-Campus)',
+    preferredSchedule: 'Morning (9 AM - 12 PM)',
+    status: 'Submitted',
+    appliedAt: new Date(Date.now() - 86400000 * 1).toISOString(),
+    updatedAt: new Date(Date.now() - 86400000 * 1).toISOString(),
+    feeStatus: 'Unpaid'
+  }
+];
+
+const gnrcAttendanceStore: GNRCPhysicalAttendanceRecord[] = [
+  {
+    studentEmail: 'usama@gnrc.edu.pk',
+    courseId: 'gnrc-fullstack-web',
+    totalClasses: 24,
+    attendedClasses: 22,
+    attendancePercentage: 92,
+    lastAttendedDate: new Date().toISOString()
+  }
+];
+
+let gnrcAdmCounter = 8493;
+
+// Submit Online Admission Application
+app.post('/api/gnrc/apply', (req: Request, res: Response) => {
+  const {
+    fullName,
+    fatherGuardianName,
+    phone,
+    whatsApp,
+    email,
+    address,
+    educationLevel,
+    selectedCourseId,
+    selectedCourseTitle,
+    preferredDuration,
+    preferredClassType,
+    preferredSchedule,
+    previousExperience
+  } = req.body;
+
+  if (!fullName || !phone || !email || !selectedCourseTitle) {
+    return res.status(400).json({ error: 'Full name, phone, email, and selected course are required.' });
+  }
+
+  gnrcAdmCounter++;
+  const trackingId = `GNRC-ADM-${gnrcAdmCounter}`;
+  const nowStr = new Date().toISOString();
+
+  const newApp: GNRCAdmissionApplicationRecord = {
+    id: trackingId,
+    fullName,
+    fatherGuardianName: fatherGuardianName || 'N/A',
+    phone,
+    whatsApp: whatsApp || phone,
+    email,
+    address: address || 'Hasilpur, Punjab, Pakistan',
+    educationLevel: educationLevel || 'Matriculation',
+    selectedCourseId: selectedCourseId || 'gnrc-comp-basics',
+    selectedCourseTitle,
+    preferredDuration: preferredDuration || '3 Months',
+    preferredClassType: preferredClassType || 'Physical (On-Campus)',
+    preferredSchedule: preferredSchedule || 'Evening (6 PM - 9 PM)',
+    previousExperience: previousExperience || 'Beginner',
+    status: 'Submitted',
+    appliedAt: nowStr,
+    updatedAt: nowStr,
+    feeStatus: 'Unpaid'
+  };
+
+  gnrcAdmissionsStore.unshift(newApp);
+  res.status(201).json({ success: true, application: newApp, trackingId });
+});
+
+// Get Admission Applications (Admin or Student Track)
+app.get('/api/gnrc/admissions', (req: Request, res: Response) => {
+  const email = req.query.email as string;
+  const status = req.query.status as string;
+
+  let filtered = [...gnrcAdmissionsStore];
+  if (email) filtered = filtered.filter(a => a.email.toLowerCase() === email.toLowerCase());
+  if (status && status !== 'All') filtered = filtered.filter(a => a.status === status);
+
+  res.json({ admissions: filtered });
+});
+
+// Get Single Admission Application
+app.get('/api/gnrc/admissions/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const appRecord = gnrcAdmissionsStore.find(a => a.id.toLowerCase() === id.toLowerCase());
+  if (!appRecord) return res.status(404).json({ error: 'Admission application not found.' });
+
+  res.json({ application: appRecord });
+});
+
+// Update Admission Application Status / Notes
+app.patch('/api/gnrc/admissions/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { status, adminNotes, assignedInstructor, feeStatus } = req.body;
+
+  const appRecord = gnrcAdmissionsStore.find(a => a.id === id);
+  if (!appRecord) return res.status(404).json({ error: 'Admission application not found.' });
+
+  if (status) appRecord.status = status;
+  if (adminNotes) appRecord.adminNotes = adminNotes;
+  if (assignedInstructor) appRecord.assignedInstructor = assignedInstructor;
+  if (feeStatus) appRecord.feeStatus = feeStatus;
+  appRecord.updatedAt = new Date().toISOString();
+
+  res.json({ success: true, application: appRecord });
+});
+
+// Convert Approved Application to Enrollment
+app.post('/api/gnrc/admissions/:id/convert', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const appRecord = gnrcAdmissionsStore.find(a => a.id === id);
+  if (!appRecord) return res.status(404).json({ error: 'Admission application not found.' });
+
+  appRecord.status = 'Enrolled';
+  appRecord.updatedAt = new Date().toISOString();
+
+  // Create LMS enrollment
+  const newEnrollment: Enrollment = {
+    id: `enr-gnrc-${Date.now().toString().slice(-4)}`,
+    studentName: appRecord.fullName,
+    studentEmail: appRecord.email,
+    courseId: appRecord.selectedCourseId,
+    courseTitle: appRecord.selectedCourseTitle,
+    type: appRecord.preferredClassType === 'Physical (On-Campus)' ? 'physical' : 'online',
+    schedule: `${appRecord.preferredSchedule} (${appRecord.preferredClassType})`,
+    progress: 0,
+    enrolledAt: new Date().toISOString(),
+    certificateIssued: false
+  };
+
+  enrollments.unshift(newEnrollment);
+  res.json({ success: true, application: appRecord, enrollment: newEnrollment });
+});
+
+// Physical Attendance API
+app.get('/api/gnrc/attendance', (req: Request, res: Response) => {
+  const email = req.query.email as string;
+  let filtered = [...gnrcAttendanceStore];
+  if (email) filtered = filtered.filter(a => a.studentEmail.toLowerCase() === email.toLowerCase());
+
+  res.json({ attendance: filtered });
+});
+
+app.post('/api/gnrc/attendance', (req: Request, res: Response) => {
+  const { studentEmail, courseId, attended } = req.body;
+  let rec = gnrcAttendanceStore.find(a => a.studentEmail === studentEmail && a.courseId === courseId);
+
+  if (!rec) {
+    rec = {
+      studentEmail,
+      courseId,
+      totalClasses: 1,
+      attendedClasses: attended ? 1 : 0,
+      attendancePercentage: attended ? 100 : 0,
+      lastAttendedDate: new Date().toISOString()
+    };
+    gnrcAttendanceStore.push(rec);
+  } else {
+    rec.totalClasses += 1;
+    if (attended) rec.attendedClasses += 1;
+    rec.attendancePercentage = Math.round((rec.attendedClasses / rec.totalClasses) * 100);
+    rec.lastAttendedDate = new Date().toISOString();
+  }
+
+  res.json({ success: true, attendance: rec });
+});
+
+// ----------------------------------------------------
 // OWNER COMMAND CENTER, USER & ROLE MANAGEMENT & SETTINGS
 // ----------------------------------------------------
 

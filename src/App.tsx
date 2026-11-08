@@ -36,6 +36,8 @@ import { CommunityPage } from './pages/CommunityPage';
 import { ResearchPage } from './pages/ResearchPage';
 import { KnowledgeAdminPage } from './pages/KnowledgeAdminPage';
 import { KnowledgeIntelligenceCenterPage } from './pages/KnowledgeIntelligenceCenterPage';
+import { GNRCPage } from './pages/GNRCPage';
+import { GNRCApplyPage } from './pages/GNRCApplyPage';
 import { GlobalSearchModal } from './components/GlobalSearchModal';
 import { FloatingAIAssistant } from './components/FloatingAIAssistant';
 import { COURSES, SERVICES, AI_TOOLS } from './data/mockData';
@@ -261,6 +263,18 @@ export default function App() {
 
               {currentPage === 'knowledge-intelligence' && (
                 <KnowledgeIntelligenceCenterPage onNavigate={handleNavigate} />
+              )}
+
+              {(currentPage === 'gnrc' || currentPage === 'gnrc-courses') && (
+                <GNRCPage onNavigate={handleNavigate} />
+              )}
+
+              {(currentPage === 'gnrc-apply' || currentPage === 'gnrc-admissions') && (
+                <GNRCApplyPage onNavigate={handleNavigate} />
+              )}
+
+              {currentPage === 'gnrc-student-portal' && (
+                <StudentDashboard onNavigate={handleNavigate} onSelectCourse={handleSelectCourse} />
               )}
 
               {currentPage === 'login' && (

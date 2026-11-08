@@ -19,6 +19,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, onOpenS
 
   const navLinks: { label: string; page: PageRoute }[] = [
     { label: 'Academy', page: 'academy' },
+    { label: 'GNRC Institute', page: 'gnrc' },
     { label: 'Services', page: 'services' },
     { label: 'AI Tools', page: 'tools' },
     { label: 'AI Lab', page: 'ai-lab' },
