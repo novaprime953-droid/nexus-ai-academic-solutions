@@ -1,13 +1,29 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '../types';
+import {
+  auth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  sendPasswordResetEmail,
+  sendEmailVerification,
+  onAuthStateChanged,
+  FirebaseUser
+} from '../lib/firebase';
+import { safeFetchJson } from '../utils/api';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, role?: 'student' | 'teacher' | 'admin') => void;
-  logout: () => void;
-  switchRole: (role: 'student' | 'teacher' | 'admin') => void;
+  firebaseUser: FirebaseUser | null;
+  loading: boolean;
+  loginWithFirebase: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
+  registerWithFirebase: (email: string, pass: string, name: string, accountType?: 'student' | 'client') => Promise<{ success: boolean; error?: string }>;
+  resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
   enrolledCourseIds: string[];
   enrollInCourse: (courseId: string) => void;
+  login: (email: string, role?: 'student' | 'teacher' | 'admin') => void;
+  switchRole: (role: 'student' | 'teacher' | 'admin') => void;
 }
 
 const defaultStudent: User = {
@@ -21,34 +37,116 @@ const defaultStudent: User = {
 
 const AuthContext = createContext<AuthContextType>({
   user: defaultStudent,
-  login: () => {},
-  logout: () => {},
-  switchRole: () => {},
+  firebaseUser: null,
+  loading: false,
+  loginWithFirebase: async () => ({ success: false }),
+  registerWithFirebase: async () => ({ success: false }),
+  resetPassword: async () => ({ success: false }),
+  logout: async () => {},
   enrolledCourseIds: ['artificial-intelligence', 'web-development'],
   enrollInCourse: () => {},
+  login: () => {},
+  switchRole: () => {},
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(defaultStudent);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [loading, setLoading] = useState(true);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([
     'artificial-intelligence',
     'web-development',
   ]);
 
-  useEffect(() => {
-    const saved = localStorage.getItem('nexus_user');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setUser(parsed);
-        if (parsed.enrolledCourses) {
-          setEnrolledCourseIds(parsed.enrolledCourses);
-        }
-      } catch (e) {
-        // use default
-      }
+  const syncUserProfileWithBackend = async (fbUser: FirebaseUser, nameHint?: string, accountTypeHint?: 'student' | 'client') => {
+    const res = await safeFetchJson('/api/auth/sync-profile', {
+      method: 'POST',
+      body: JSON.stringify({
+        uid: fbUser.uid,
+        email: fbUser.email,
+        name: nameHint || fbUser.displayName || fbUser.email?.split('@')[0],
+        accountType: accountTypeHint || 'student'
+      })
+    });
+
+    if (res.success && res.data?.profile) {
+      const p = res.data.profile;
+      const appUser: User = {
+        id: p.id,
+        name: p.name,
+        email: p.email,
+        role: p.role === 'Instructor' ? 'teacher' : p.role === 'Admin' || p.role === 'Owner' ? 'admin' : 'student',
+        avatar: p.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+        enrolledCourses: enrolledCourseIds
+      };
+      setUser(appUser);
+      localStorage.setItem('nexus_user', JSON.stringify(appUser));
     }
+  };
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currUser) => {
+      setFirebaseUser(currUser);
+      if (currUser) {
+        await syncUserProfileWithBackend(currUser);
+      } else {
+        const saved = localStorage.getItem('nexus_user');
+        if (saved) {
+          try {
+            setUser(JSON.parse(saved));
+          } catch (e) {
+            setUser(defaultStudent);
+          }
+        }
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
+
+  const loginWithFirebase = async (email: string, pass: string) => {
+    try {
+      const res = await signInWithEmailAndPassword(auth, email, pass);
+      await syncUserProfileWithBackend(res.user);
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Firebase authentication failed.' };
+    }
+  };
+
+  const registerWithFirebase = async (email: string, pass: string, name: string, accountType: 'student' | 'client' = 'student') => {
+    try {
+      const res = await createUserWithEmailAndPassword(auth, email, pass);
+      if (res.user) {
+        await sendEmailVerification(res.user);
+        await syncUserProfileWithBackend(res.user, name, accountType);
+      }
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Firebase account creation failed.' };
+    }
+  };
+
+  const resetPassword = async (email: string) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Password reset email failed.' };
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await firebaseSignOut(auth);
+    } catch (e) {
+      console.error(e);
+    }
+    setUser(null);
+    setFirebaseUser(null);
+    localStorage.removeItem('nexus_user');
+  };
 
   const login = (email: string, role: 'student' | 'teacher' | 'admin' = 'student') => {
     const names: Record<string, string> = {
@@ -69,11 +167,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     setUser(newUser);
     localStorage.setItem('nexus_user', JSON.stringify(newUser));
-  };
-
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('nexus_user');
   };
 
   const switchRole = (role: 'student' | 'teacher' | 'admin') => {
@@ -111,11 +204,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider
       value={{
         user,
-        login,
+        firebaseUser,
+        loading,
+        loginWithFirebase,
+        registerWithFirebase,
+        resetPassword,
         logout,
-        switchRole,
         enrolledCourseIds,
         enrollInCourse,
+        login,
+        switchRole,
       }}
     >
       {children}

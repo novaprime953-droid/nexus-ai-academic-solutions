@@ -65,7 +65,9 @@ import {
   ToggleRight,
   GraduationCap,
   Building,
-  LogOut
+  LogOut,
+  Trash2,
+  Layers
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -76,7 +78,7 @@ interface AdminDashboardProps {
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, onLogout }) => {
   const { user } = useAuth();
   const [activeSection, setActiveSection] = useState<
-    'overview' | 'gnrc' | 'users' | 'analytics' | 'settings' | 'health' | 'audit' | 'leads' | 'clients' | 'proposals' | 'projects' | 'tickets' | 'inquiries'
+    'overview' | 'gnrc' | 'services' | 'users' | 'analytics' | 'settings' | 'health' | 'audit' | 'leads' | 'clients' | 'proposals' | 'projects' | 'tickets' | 'inquiries'
   >('overview');
 
   // Command Center Overview State
@@ -86,6 +88,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, onLo
   const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
   const [auditLogs, setAuditLogs] = useState<SystemAuditLog[]>([]);
   const [systemHealth, setSystemHealth] = useState<any>(null);
+
+  // Services State
+  const [servicesList, setServicesList] = useState<any[]>([]);
+  const [newSrvTitle, setNewSrvTitle] = useState('');
+  const [newSrvCategory, setNewSrvCategory] = useState('AI Solutions');
+  const [newSrvPricing, setNewSrvPricing] = useState('$5,000 – $25,000');
+  const [newSrvDesc, setNewSrvDesc] = useState('');
+  const [creatingSrv, setCreatingSrv] = useState(false);
 
   // GNRC Admissions State
   const [gnrcAdmissions, setGnrcAdmissions] = useState<GNRCAdmissionApplication[]>([]);
@@ -102,43 +112,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, onLo
   // Support Tickets State
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
-  const [ticketFilterStatus, setTicketFilterStatus] = useState<string>('All');
-  const [ticketFilterCategory, setTicketFilterCategory] = useState<string>('All');
-  const [ticketFilterPriority, setTicketFilterPriority] = useState<string>('All');
-  const [ticketSearch, setTicketSearch] = useState<string>('');
-
-  const [staffReplyText, setStaffReplyText] = useState('');
-  const [internalNoteText, setInternalNoteText] = useState('');
-  const [isPostingReply, setIsPostingReply] = useState(false);
-  const [isGeneratingAiDraft, setIsGeneratingAiDraft] = useState(false);
 
   // CRM State
   const [leads, setLeads] = useState<CRMLead[]>([]);
-  const [selectedLead, setSelectedLead] = useState<CRMLead | null>(null);
-  const [leadAiAnalysis, setLeadAiAnalysis] = useState<string | null>(null);
-  const [qualifyingLead, setQualifyingLead] = useState(false);
-
-  // New Lead Form
-  const [newLeadContact, setNewLeadContact] = useState('');
-  const [newLeadCompany, setNewLeadCompany] = useState('');
-  const [newLeadEmail, setNewLeadEmail] = useState('');
-  const [newLeadService, setNewLeadService] = useState('AI Automation & Custom Agent Pipelines');
-  const [newLeadBudget, setNewLeadBudget] = useState('$10,000 - $25,000');
-  const [newLeadDesc, setNewLeadDesc] = useState('');
-  const [creatingLead, setCreatingLead] = useState(false);
-
-  // Clients, Proposals, Projects
   const [clients, setClients] = useState<ClientRecord[]>([]);
   const [proposals, setProposals] = useState<ProposalRecord[]>([]);
   const [projects, setProjects] = useState<ClientProject[]>([]);
-  const [inquiries, setInquiries] = useState<any[]>([]);
 
   // Settings Save State
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsSavedMsg, setSettingsSavedMsg] = useState<string | null>(null);
 
   const fetchCommandCenterData = async () => {
-    const [cmdRes, anaRes, usrRes, setRes, audRes, hltRes, lRes, cRes, pRes, prjRes, inqRes, tRes, gnrcRes] = await Promise.all([
+    const [cmdRes, anaRes, usrRes, setRes, audRes, hltRes, lRes, cRes, pRes, prjRes, tRes, gnrcRes, srvRes] = await Promise.all([
       safeFetchJson('/api/admin/command-center'),
       safeFetchJson('/api/admin/analytics?range=30d'),
       safeFetchJson('/api/admin/users'),
@@ -149,9 +135,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, onLo
       safeFetchJson('/api/crm/clients'),
       safeFetchJson('/api/crm/proposals'),
       safeFetchJson('/api/crm/projects'),
-      safeFetchJson('/api/inquiries'),
       safeFetchJson('/api/tickets?role=admin'),
-      safeFetchJson('/api/gnrc/admissions')
+      safeFetchJson('/api/gnrc/admissions'),
+      safeFetchJson('/api/admin/services')
     ]);
 
     if (cmdRes.success) setCommandData(cmdRes.data);
@@ -164,14 +150,44 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, onLo
     if (cRes.success) setClients(cRes.data?.clients || []);
     if (pRes.success) setProposals(pRes.data?.proposals || []);
     if (prjRes.success) setProjects(prjRes.data?.projects || []);
-    if (inqRes.success) setInquiries(inqRes.data?.inquiries || []);
     if (tRes.success) setTickets(tRes.data?.tickets || []);
     if (gnrcRes.success) setGnrcAdmissions(gnrcRes.data?.admissions || []);
+    if (srvRes.success) setServicesList(srvRes.data?.services || []);
   };
 
   useEffect(() => {
     fetchCommandCenterData();
   }, []);
+
+  const handleCreateService = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSrvTitle || !newSrvDesc) return;
+    setCreatingSrv(true);
+
+    const res = await safeFetchJson('/api/admin/services', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: newSrvTitle,
+        category: newSrvCategory,
+        pricingRange: newSrvPricing,
+        description: newSrvDesc
+      })
+    });
+
+    if (res.success) {
+      setNewSrvTitle('');
+      setNewSrvDesc('');
+      fetchCommandCenterData();
+    }
+    setCreatingSrv(false);
+  };
+
+  const handleDeleteService = async (srvId: string) => {
+    const res = await safeFetchJson(`/api/admin/services/${srvId}`, { method: 'DELETE' });
+    if (res.success) {
+      fetchCommandCenterData();
+    }
+  };
 
   const handleUpdateGnrcStatus = async (appId: string, status: string, assignedInstructor?: string, feeStatus?: string) => {
     const res = await safeFetchJson(`/api/gnrc/admissions/${appId}`, {
@@ -223,102 +239,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, onLo
 
   const handleExportCSV = (type: string) => {
     window.open(`/api/admin/export/${type}`, '_blank');
-  };
-
-  const handleCreateLead = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newLeadContact || !newLeadEmail) return;
-    setCreatingLead(true);
-
-    const res = await safeFetchJson('/api/crm/leads', {
-      method: 'POST',
-      body: JSON.stringify({
-        contactName: newLeadContact,
-        companyName: newLeadCompany,
-        email: newLeadEmail,
-        requiredService: newLeadService,
-        budgetRange: newLeadBudget,
-        description: newLeadDesc,
-        assignedSalesRep: user?.name || 'Marcus Thorne'
-      })
-    });
-
-    if (res.success) {
-      setNewLeadContact('');
-      setNewLeadCompany('');
-      setNewLeadEmail('');
-      setNewLeadDesc('');
-      fetchCommandCenterData();
-    }
-    setCreatingLead(false);
-  };
-
-  const handleConvertLead = async (leadId: string) => {
-    const res = await safeFetchJson(`/api/crm/leads/${leadId}/convert`, { method: 'POST' });
-    if (res.success) {
-      fetchCommandCenterData();
-    }
-  };
-
-  const handleAiQualifyLead = async (lead: CRMLead) => {
-    setQualifyingLead(true);
-    const res = await safeFetchJson('/api/crm/ai/qualify-lead', {
-      method: 'POST',
-      body: JSON.stringify({
-        contactName: lead.contactName,
-        companyName: lead.companyName,
-        requiredService: lead.requiredService,
-        budgetRange: lead.budgetRange,
-        description: lead.description
-      })
-    });
-
-    if (res.success) {
-      setLeadAiAnalysis(res.data?.analysis || 'Lead analysis completed.');
-    }
-    setQualifyingLead(false);
-  };
-
-  const handleUpdateTicket = async (ticketId: string, updates: Partial<SupportTicket>) => {
-    const res = await safeFetchJson(`/api/tickets/${ticketId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(updates),
-    });
-    if (res.success) {
-      if (selectedTicket?.id === ticketId) {
-        setSelectedTicket(res.data.ticket);
-      }
-      fetchCommandCenterData();
-    }
-  };
-
-  const handlePostStaffReply = async (ticketId: string, isInternalNote: boolean) => {
-    const text = isInternalNote ? internalNoteText : staffReplyText;
-    if (!text.trim()) return;
-
-    setIsPostingReply(true);
-    const res = await safeFetchJson(`/api/tickets/${ticketId}/replies`, {
-      method: 'POST',
-      body: JSON.stringify({
-        senderName: user?.name || 'Marcus Thorne (Administrator)',
-        senderEmail: user?.email || 'admin@nexusai.com',
-        senderRole: 'staff',
-        message: text,
-        isInternalNote,
-      }),
-    });
-
-    if (res.success) {
-      if (isInternalNote) setInternalNoteText('');
-      else setStaffReplyText('');
-
-      const resTicket = await safeFetchJson(`/api/tickets/${ticketId}?role=admin`);
-      if (resTicket.success) {
-        setSelectedTicket(resTicket.data.ticket);
-      }
-      fetchCommandCenterData();
-    }
-    setIsPostingReply(false);
   };
 
   const handleAdminLogout = async () => {
@@ -394,6 +314,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, onLo
         <div className="flex gap-2 border-b border-white/10 pb-4 overflow-x-auto text-xs font-medium">
           {[
             { id: 'overview', label: 'Owner Command Center' },
+            { id: 'services', label: `Services Management (${servicesList.length})` },
             { id: 'gnrc', label: `GNRC Institute Admissions (${gnrcAdmissions.length})` },
             { id: 'users', label: `Users & Roles (${usersList.length})` },
             { id: 'analytics', label: 'Advanced Analytics' },
@@ -417,6 +338,110 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, onLo
             </button>
           ))}
         </div>
+
+        {/* TAB: SERVICES MANAGEMENT CRUD */}
+        {activeSection === 'services' && (
+          <div className="space-y-8 text-xs">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Create Service Form */}
+              <div className="glass-panel p-6 rounded-3xl border border-cyan-400/30 space-y-4 bg-[#151F40] lg:col-span-1">
+                <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-2 border-b border-white/10 pb-3">
+                  <Layers className="w-4 h-4 text-cyan-400" /> Create New Digital Service
+                </h3>
+
+                <form onSubmit={handleCreateService} className="space-y-3">
+                  <div>
+                    <label className="text-slate-400 mb-1 block">Service Title *</label>
+                    <input
+                      type="text"
+                      required
+                      value={newSrvTitle}
+                      onChange={(e) => setNewSrvTitle(e.target.value)}
+                      placeholder="e.g. AI Automation & Custom Agents"
+                      className="w-full bg-[#10172F] border border-white/10 rounded-xl px-3 py-2 text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-400 mb-1 block">Service Category</label>
+                    <input
+                      type="text"
+                      value={newSrvCategory}
+                      onChange={(e) => setNewSrvCategory(e.target.value)}
+                      placeholder="e.g. Software Engineering"
+                      className="w-full bg-[#10172F] border border-white/10 rounded-xl px-3 py-2 text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-400 mb-1 block">Pricing Range</label>
+                    <input
+                      type="text"
+                      value={newSrvPricing}
+                      onChange={(e) => setNewSrvPricing(e.target.value)}
+                      placeholder="e.g. $5,000 – $25,000"
+                      className="w-full bg-[#10172F] border border-white/10 rounded-xl px-3 py-2 text-white font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-400 mb-1 block">Service Description *</label>
+                    <textarea
+                      rows={3}
+                      required
+                      value={newSrvDesc}
+                      onChange={(e) => setNewSrvDesc(e.target.value)}
+                      placeholder="Enterprise AI agent workflows and custom web engineering..."
+                      className="w-full bg-[#10172F] border border-white/10 rounded-xl p-3 text-white resize-none"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={creatingSrv}
+                    className="w-full py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+                  >
+                    {creatingSrv ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                    <span>Publish Digital Service</span>
+                  </button>
+                </form>
+              </div>
+
+              {/* Published Services Grid */}
+              <div className="lg:col-span-2 space-y-4">
+                <h3 className="text-sm font-bold text-white flex items-center justify-between">
+                  <span>Published Digital Services Directory</span>
+                  <span className="text-slate-400 font-mono">{servicesList.length} Active Services</span>
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {servicesList.map((srv) => (
+                    <div key={srv.id} className="glass-panel p-5 rounded-3xl border border-white/10 space-y-3 bg-[#151F40]/90 flex flex-col justify-between">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-[10px] font-mono">
+                          <span className="text-cyan-400 font-bold">{srv.id}</span>
+                          <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 font-bold rounded">{srv.status || 'Published'}</span>
+                        </div>
+                        <strong className="text-white block text-sm">{srv.title}</strong>
+                        <p className="text-slate-300 leading-relaxed text-[11px] line-clamp-3">{srv.description}</p>
+                      </div>
+
+                      <div className="pt-3 border-t border-white/10 flex items-center justify-between text-[11px] font-mono">
+                        <span className="text-amber-400 font-bold">{srv.pricingRange}</span>
+                        <button
+                          onClick={() => handleDeleteService(srv.id)}
+                          className="px-2.5 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/30 rounded-lg flex items-center gap-1 transition-colors"
+                        >
+                          <Trash2 className="w-3 h-3" /> Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* TAB: GNRC INSTITUTE MANAGEMENT */}
         {activeSection === 'gnrc' && (

@@ -8,8 +8,7 @@ import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = process.cwd();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -3293,6 +3292,41 @@ const systemAuditLogsStore: SystemAuditLogRecord[] = [
 ];
 
 // ----------------------------------------------------
+// FIREBASE AUTHENTICATION PROFILE SYNC API
+// ----------------------------------------------------
+app.post('/api/auth/sync-profile', (req: Request, res: Response) => {
+  const { uid, email, name, accountType } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'Email is required for profile sync.' });
+  }
+
+  const cleanEmail = email.toLowerCase().trim();
+  let existingUser = systemUsersStore.find(u => u.email.toLowerCase() === cleanEmail);
+
+  if (!existingUser) {
+    const isOwner = cleanEmail === 'admin@nexusai.com';
+    const assignedRole = isOwner ? 'Owner' : accountType === 'client' ? 'Client' : 'Student';
+
+    existingUser = {
+      id: uid || `usr-${Date.now().toString().slice(-4)}`,
+      name: name || cleanEmail.split('@')[0],
+      email: cleanEmail,
+      role: assignedRole,
+      status: 'Active',
+      createdAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString(),
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'
+    };
+    systemUsersStore.push(existingUser);
+  } else {
+    existingUser.lastLoginAt = new Date().toISOString();
+  }
+
+  res.json({ success: true, profile: existingUser });
+});
+
+// ----------------------------------------------------
 // SECURE ADMIN AUTHENTICATION & SESSION MANAGEMENT
 // ----------------------------------------------------
 
@@ -3622,6 +3656,77 @@ app.patch('/api/admin/settings', requireAdminAuth, (req: Request, res: Response)
   });
 
   res.json({ success: true, settings: systemSettingsStore });
+});
+
+// 5. Admin Services CRUD API
+interface ServiceRecord {
+  id: string;
+  title: string;
+  subtitle: string;
+  category: string;
+  description: string;
+  pricingRange: string;
+  timeline: string;
+  status: 'Published' | 'Draft';
+}
+
+const adminServicesStore: ServiceRecord[] = [
+  {
+    id: 'srv-ai-agent',
+    title: 'AI Automation & Custom Agent Pipelines',
+    subtitle: 'Autonomous AI Workflows & Multi-Agent Orchestration',
+    category: 'AI & Automation',
+    description: 'Enterprise AI agents built with LangChain, LlamaIndex, and Gemini 2.5 Flash for automated workflow execution.',
+    pricingRange: '$5,000 – $25,000',
+    timeline: '2 – 6 Weeks',
+    status: 'Published'
+  },
+  {
+    id: 'srv-fullstack-dev',
+    title: 'Full-Stack Web & SaaS Application Engineering',
+    subtitle: 'Scalable Cloud Architectures with React, Node.js & PostgreSQL',
+    category: 'Software Engineering',
+    description: 'Custom SaaS products engineered with high performance, edge caching, and real-time database sync.',
+    pricingRange: '$8,000 – $35,000',
+    timeline: '4 – 8 Weeks',
+    status: 'Published'
+  }
+];
+
+app.get('/api/admin/services', requireAdminAuth, (_req: Request, res: Response) => {
+  res.json({ services: adminServicesStore });
+});
+
+app.post('/api/admin/services', requireAdminAuth, (req: Request, res: Response) => {
+  const { title, subtitle, category, description, pricingRange, timeline } = req.body;
+  const newSrv: ServiceRecord = {
+    id: `srv-${Date.now().toString().slice(-4)}`,
+    title: title || 'New Digital Service',
+    subtitle: subtitle || 'Professional Technology Solution',
+    category: category || 'AI Solutions',
+    description: description || 'High impact digital service deliverable.',
+    pricingRange: pricingRange || '$3,000 – $15,000',
+    timeline: timeline || '2 Weeks',
+    status: 'Published'
+  };
+  adminServicesStore.unshift(newSrv);
+  res.status(201).json({ success: true, service: newSrv });
+});
+
+app.patch('/api/admin/services/:id', requireAdminAuth, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const srv = adminServicesStore.find(s => s.id === id);
+  if (!srv) return res.status(404).json({ error: 'Service not found.' });
+
+  Object.assign(srv, req.body);
+  res.json({ success: true, service: srv });
+});
+
+app.delete('/api/admin/services/:id', requireAdminAuth, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const idx = adminServicesStore.findIndex(s => s.id === id);
+  if (idx !== -1) adminServicesStore.splice(idx, 1);
+  res.json({ success: true, message: 'Service removed.' });
 });
 
 // 5. System Health Monitoring API (Protected)
