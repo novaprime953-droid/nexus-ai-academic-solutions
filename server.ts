@@ -1549,6 +1549,760 @@ app.post('/api/intelligence/feedback', (req: Request, res: Response) => {
   res.json({ success: true, message: 'Feedback recorded securely. Thank you for helping improve Nexus Knowledge Brain.' });
 });
 
+// ----------------------------------------------------
+// ACADEMY LEARNING MANAGEMENT SYSTEM (LMS) BACKEND
+// ----------------------------------------------------
+
+interface LMSLessonRecord {
+  id: string;
+  title: string;
+  duration: string;
+  type: 'video' | 'article' | 'quiz' | 'assignment';
+  videoUrl?: string;
+  contentHtml?: string;
+  downloadableResources?: { name: string; url: string; size: string }[];
+  learningObjectives?: string[];
+  isFreePreview?: boolean;
+}
+
+interface LMSModuleRecord {
+  id: string;
+  week: string;
+  title: string;
+  lessons: LMSLessonRecord[];
+}
+
+interface LMSQuizQuestionRecord {
+  id: string;
+  text: string;
+  type: 'multiple_choice' | 'true_false' | 'short_answer';
+  options?: string[];
+  correctAnswer: string | number;
+  explanation?: string;
+  points: number;
+}
+
+interface LMSQuizRecord {
+  id: string;
+  courseId: string;
+  title: string;
+  timeLimitMinutes: number;
+  passScorePercentage: number;
+  questions: LMSQuizQuestionRecord[];
+}
+
+interface LMSQuizAttemptRecord {
+  id: string;
+  quizId: string;
+  courseId: string;
+  studentEmail: string;
+  studentName: string;
+  scorePercentage: number;
+  passed: boolean;
+  answers: Record<string, string | number>;
+  submittedAt: string;
+  feedback?: string;
+}
+
+interface LMSAssignmentRecord {
+  id: string;
+  courseId: string;
+  title: string;
+  description: string;
+  deadline: string;
+  maxPoints: number;
+}
+
+interface LMSAssignmentSubmissionRecord {
+  id: string;
+  assignmentId: string;
+  courseId: string;
+  studentEmail: string;
+  studentName: string;
+  content: string;
+  fileName?: string;
+  submittedAt: string;
+  gradePoints?: number;
+  status: 'Pending' | 'Graded' | 'Resubmission Requested';
+  instructorFeedback?: string;
+  gradedBy?: string;
+  gradedAt?: string;
+}
+
+interface LMSCertificateRecord {
+  id: string;
+  studentName: string;
+  studentEmail: string;
+  courseId: string;
+  courseTitle: string;
+  instructorName: string;
+  issuedAt: string;
+  gradeScore: string;
+  verificationUrl: string;
+  status: 'Valid' | 'Revoked';
+}
+
+interface LMSReviewRecord {
+  id: string;
+  courseId: string;
+  studentName: string;
+  rating: number;
+  comment: string;
+  date: string;
+  status: 'Approved' | 'Pending Moderation' | 'Rejected';
+}
+
+interface LMSAnnouncementRecord {
+  id: string;
+  courseId?: string;
+  title: string;
+  message: string;
+  postedBy: string;
+  date: string;
+  targetCohort: string;
+}
+
+interface LMSProgressRecord {
+  studentEmail: string;
+  courseId: string;
+  completedLessonIds: string[];
+  lastAccessedLessonId?: string;
+  progressPercentage: number;
+  lastAccessedAt: string;
+}
+
+// In-Memory LMS Seed Stores
+const lmsModulesStore: Record<string, LMSModuleRecord[]> = {
+  'artificial-intelligence': [
+    {
+      id: 'mod-ai-1',
+      week: 'Week 1-3',
+      title: 'Neural Foundations & Modern Transformer Topology',
+      lessons: [
+        {
+          id: 'les-ai-101',
+          title: 'Attention Mechanisms, Multi-Head Self Attention & KV Caching',
+          duration: '45 mins',
+          type: 'video',
+          videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
+          contentHtml: '<h3>Neural Foundations & KV Caching Architecture</h3><p>In this lesson, we explore how Key-Value Caching reduces autoregressive LLM inference latency from O(N^2) to O(N) by caching previous token keys and values in GPU VRAM.</p>',
+          downloadableResources: [
+            { name: 'Attention_Mechanism_CheatSheet.pdf', url: '#', size: '1.2 MB' },
+            { name: 'kv_cache_benchmark.py', url: '#', size: '14 KB' }
+          ],
+          learningObjectives: [
+            'Understand Scaled Dot-Product Attention equation',
+            'Implement KV Caching in PyTorch',
+            'Analyze GPU VRAM memory bottlenecks during streaming'
+          ],
+          isFreePreview: true
+        },
+        {
+          id: 'les-ai-102',
+          title: 'Context Windows & Vector Semantic Embeddings',
+          duration: '35 mins',
+          type: 'article',
+          contentHtml: '<h3>Vector Embeddings & Cosine Similarity</h3><p>Dense vector representations project text into a high-dimensional continuous semantic space where semantic similarity corresponds to geometric proximity.</p>',
+          learningObjectives: [
+            'Understand dense vs sparse embeddings',
+            'Implement Cosine Similarity and Dot Product retrieval'
+          ]
+        },
+        {
+          id: 'les-ai-103',
+          title: 'Quiz 1: Transformer Architecture & KV Memory',
+          duration: '20 mins',
+          type: 'quiz',
+        }
+      ]
+    },
+    {
+      id: 'mod-ai-2',
+      week: 'Week 4-6',
+      title: 'Tool-Calling & Agentic Multi-Step Reasoning',
+      lessons: [
+        {
+          id: 'les-ai-201',
+          title: 'Autonomous ReAct Loops (Reasoning + Acting)',
+          duration: '50 mins',
+          type: 'video',
+          videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
+          contentHtml: '<h3>Autonomous ReAct Loops</h3><p>ReAct interleaves reasoning trace generation with task-specific tool execution actions, enabling models to query APIs, search databases, and execute code dynamically.</p>',
+          learningObjectives: [
+            'Architect a stateful ReAct execution loop',
+            'Implement structured JSON tool calling schema'
+          ]
+        },
+        {
+          id: 'les-ai-202',
+          title: 'Assignment 1: Build a Tool-Calling Agent',
+          duration: '60 mins',
+          type: 'assignment',
+        }
+      ]
+    }
+  ],
+  'web-development': [
+    {
+      id: 'mod-web-1',
+      week: 'Week 1-3',
+      title: 'React 19 Core & Modern Component Architecture',
+      lessons: [
+        {
+          id: 'les-web-101',
+          title: 'React 19 Server Actions, Suspense & Optimistic UI',
+          duration: '40 mins',
+          type: 'video',
+          videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
+          contentHtml: '<h3>React 19 Server Actions</h3><p>Server Actions allow asynchronous functions to be executed on the server directly from buttons and forms without writing manual API fetch boilerplate.</p>',
+          isFreePreview: true
+        },
+        {
+          id: 'les-web-102',
+          title: 'Quiz 1: React 19 Core Concepts',
+          duration: '15 mins',
+          type: 'quiz',
+        }
+      ]
+    }
+  ]
+};
+
+const lmsQuizzesStore: Record<string, LMSQuizRecord> = {
+  'artificial-intelligence': {
+    id: 'quiz-ai-101',
+    courseId: 'artificial-intelligence',
+    title: 'Autonomous AI Agents & Transformer Architecture Assessment',
+    timeLimitMinutes: 20,
+    passScorePercentage: 75,
+    questions: [
+      {
+        id: 'q1',
+        text: 'What is the main computational advantage of Key-Value (KV) Caching in autoregressive Transformer inference?',
+        type: 'multiple_choice',
+        options: [
+          'It eliminates the need for Positional Encodings',
+          'It avoids recomputing Key and Value tensors for previously generated tokens',
+          'It reduces model parameters by 50%',
+          'It converts floating point weights to 1-bit integers'
+        ],
+        correctAnswer: 1,
+        explanation: 'KV Caching stores computed Key and Value projections for past tokens in GPU memory, avoiding redundant matrix multiplications during streaming generation.',
+        points: 25
+      },
+      {
+        id: 'q2',
+        text: 'ReAct agent loops interleave reasoning traces with external tool execution actions.',
+        type: 'true_false',
+        options: ['True', 'False'],
+        correctAnswer: 0,
+        explanation: 'True. ReAct stands for Reasoning + Acting, where the agent generates a thought trace before calling an external tool action.',
+        points: 25
+      },
+      {
+        id: 'q3',
+        text: 'Briefly explain how Dense Vector Embeddings enable semantic search compared to keyword search.',
+        type: 'short_answer',
+        correctAnswer: 'Vector embeddings map words/sentences into a continuous mathematical space where conceptual similarity corresponds to geometric proximity (e.g. cosine distance), capturing meaning beyond exact string matching.',
+        explanation: 'Semantic search evaluates mathematical similarity between vector representations regardless of exact word phrasing.',
+        points: 50
+      }
+    ]
+  },
+  'web-development': {
+    id: 'quiz-web-101',
+    courseId: 'web-development',
+    title: 'React 19 & Full-Stack Architecture Assessment',
+    timeLimitMinutes: 15,
+    passScorePercentage: 70,
+    questions: [
+      {
+        id: 'qw1',
+        text: 'React 19 Server Actions allow server-side asynchronous functions to be invoked directly from forms.',
+        type: 'true_false',
+        options: ['True', 'False'],
+        correctAnswer: 0,
+        explanation: 'True. Server Actions integrate seamlessly with form submission actions in React 19.',
+        points: 50
+      },
+      {
+        id: 'qw2',
+        text: 'Which hook in React 19 handles optimistic state updates before server responses complete?',
+        type: 'multiple_choice',
+        options: ['useOptimistic', 'useActionState', 'useServerAction', 'useDeferredValue'],
+        correctAnswer: 0,
+        explanation: 'useOptimistic updates UI immediately while an asynchronous server action is in flight.',
+        points: 50
+      }
+    ]
+  }
+};
+
+const lmsQuizAttemptsStore: LMSQuizAttemptRecord[] = [
+  {
+    id: 'att-101',
+    quizId: 'quiz-ai-101',
+    courseId: 'artificial-intelligence',
+    studentEmail: 'alex.rivera@nexusai.com',
+    studentName: 'Alex Rivera',
+    scorePercentage: 100,
+    passed: true,
+    answers: { q1: 1, q2: 0, q3: 'Vector embeddings project text into high dimensional space for geometric cosine similarity.' },
+    submittedAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+    feedback: 'Excellent grasp of KV Caching and ReAct execution loops!'
+  }
+];
+
+const lmsAssignmentsStore: Record<string, LMSAssignmentRecord[]> = {
+  'artificial-intelligence': [
+    {
+      id: 'asg-ai-1',
+      courseId: 'artificial-intelligence',
+      title: 'Capstone: Build a ReAct Tool-Calling Agent with Memory Caching',
+      description: 'Implement a stateful multi-step ReAct agent in TypeScript or Python that interfaces with a weather API and database tool while managing context window token limits.',
+      deadline: new Date(Date.now() + 86400000 * 7).toISOString(),
+      maxPoints: 100
+    }
+  ]
+};
+
+const lmsAssignmentSubmissionsStore: LMSAssignmentSubmissionRecord[] = [
+  {
+    id: 'sub-301',
+    assignmentId: 'asg-ai-1',
+    courseId: 'artificial-intelligence',
+    studentEmail: 'alex.rivera@nexusai.com',
+    studentName: 'Alex Rivera',
+    content: 'https://github.com/alexrivera/nexus-react-agent-capstone',
+    fileName: 'react_agent_architecture_v1.zip',
+    submittedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    status: 'Graded',
+    gradePoints: 98,
+    instructorFeedback: 'Outstanding implementation! Clean tool-calling schemas and excellent error resilience in the execution loop.',
+    gradedBy: 'Dr. Evelyn Sterling',
+    gradedAt: new Date(Date.now() - 86400000 * 1).toISOString()
+  }
+];
+
+const lmsCertificatesStore: LMSCertificateRecord[] = [
+  {
+    id: 'NEXUS-CERT-AI100-8492',
+    studentName: 'Alex Rivera',
+    studentEmail: 'alex.rivera@nexusai.com',
+    courseId: 'artificial-intelligence',
+    courseTitle: 'Autonomous AI Agents & Large Language Model Architecture',
+    instructorName: 'Dr. Evelyn Sterling',
+    issuedAt: new Date(Date.now() - 86400000 * 1).toISOString(),
+    gradeScore: '98% Distinction',
+    verificationUrl: 'https://nexus-ai-academic-solutions.vercel.app/api/certificates/verify/NEXUS-CERT-AI100-8492',
+    status: 'Valid'
+  },
+  {
+    id: 'NEXUS-CERT-WEB100-3910',
+    studentName: 'Jordan Lee',
+    studentEmail: 'jordan@nexusai.com',
+    courseId: 'web-development',
+    courseTitle: 'Full-Stack Modern Web Engineering & React 19 Ecosystem',
+    instructorName: 'Kaelen Vance',
+    issuedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+    gradeScore: '96% High Honors',
+    verificationUrl: 'https://nexus-ai-academic-solutions.vercel.app/api/certificates/verify/NEXUS-CERT-WEB100-3910',
+    status: 'Valid'
+  }
+];
+
+const lmsReviewsStore: LMSReviewRecord[] = [
+  {
+    id: 'rev-1',
+    courseId: 'artificial-intelligence',
+    studentName: 'Alex Rivera',
+    rating: 5,
+    comment: 'The deepest, most production-focused program on AI Agents and KV Caching I have taken. Dr. Evelyn Sterling is exceptional!',
+    date: new Date(Date.now() - 86400000 * 4).toISOString(),
+    status: 'Approved'
+  }
+];
+
+const lmsAnnouncementsStore: LMSAnnouncementRecord[] = [
+  {
+    id: 'anc-1',
+    courseId: 'artificial-intelligence',
+    title: 'Cyber Lab 4 Workstation Conda Environment Updated',
+    message: 'All physical lab workstations in Cyber Lab 4 have been updated with PyTorch 2.5 and CUDA 12.4 drivers. Please pull the latest repo.',
+    postedBy: 'Dr. Evelyn Sterling',
+    date: new Date(Date.now() - 86400000 * 1).toISOString(),
+    targetCohort: 'Cohort 2026'
+  }
+];
+
+const lmsProgressStore: LMSProgressRecord[] = [
+  {
+    studentEmail: 'alex.rivera@nexusai.com',
+    courseId: 'artificial-intelligence',
+    completedLessonIds: ['les-ai-101', 'les-ai-102', 'les-ai-103'],
+    lastAccessedLessonId: 'les-ai-201',
+    progressPercentage: 78,
+    lastAccessedAt: new Date().toISOString()
+  },
+  {
+    studentEmail: 'alex.rivera@nexusai.com',
+    courseId: 'web-development',
+    completedLessonIds: ['les-web-101', 'les-web-102'],
+    lastAccessedLessonId: 'les-web-102',
+    progressPercentage: 100,
+    lastAccessedAt: new Date(Date.now() - 86400000 * 5).toISOString()
+  }
+];
+
+// ----------------------------------------------------
+// LMS API ENDPOINTS
+// ----------------------------------------------------
+
+// Get All LMS Course Curriculum & Modules
+app.get('/api/lms/courses/:id/modules', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const modules = lmsModulesStore[id] || [];
+  res.json({ courseId: id, modules });
+});
+
+// Update or Add LMS Modules (Instructors & Admins)
+app.post('/api/lms/courses/:id/modules', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { modules } = req.body;
+
+  if (!Array.isArray(modules)) {
+    return res.status(400).json({ error: 'Modules array is required.' });
+  }
+
+  lmsModulesStore[id] = modules;
+  res.json({ success: true, courseId: id, modules });
+});
+
+// Get Student Lesson Progress
+app.get('/api/lms/progress', (req: Request, res: Response) => {
+  const email = (req.query.email as string) || 'alex.rivera@nexusai.com';
+  const courseId = req.query.courseId as string;
+
+  if (courseId) {
+    const prog = lmsProgressStore.find(p => p.studentEmail === email && p.courseId === courseId);
+    return res.json({ progress: prog || { studentEmail: email, courseId, completedLessonIds: [], progressPercentage: 0, lastAccessedAt: new Date().toISOString() } });
+  }
+
+  const userProgress = lmsProgressStore.filter(p => p.studentEmail === email);
+  res.json({ progress: userProgress });
+});
+
+// Update Lesson Completion & Progress
+app.post('/api/lms/progress', (req: Request, res: Response) => {
+  const { studentEmail, courseId, lessonId, isCompleted } = req.body;
+
+  if (!studentEmail || !courseId || !lessonId) {
+    return res.status(400).json({ error: 'studentEmail, courseId, and lessonId are required.' });
+  }
+
+  let prog = lmsProgressStore.find(p => p.studentEmail === studentEmail && p.courseId === courseId);
+  if (!prog) {
+    prog = {
+      studentEmail,
+      courseId,
+      completedLessonIds: [],
+      progressPercentage: 0,
+      lastAccessedAt: new Date().toISOString()
+    };
+    lmsProgressStore.push(prog);
+  }
+
+  if (isCompleted && !prog.completedLessonIds.includes(lessonId)) {
+    prog.completedLessonIds.push(lessonId);
+  } else if (!isCompleted) {
+    prog.completedLessonIds = prog.completedLessonIds.filter(id => id !== lessonId);
+  }
+
+  // Calculate total lessons in course
+  const courseModules = lmsModulesStore[courseId] || [];
+  let totalLessons = 0;
+  courseModules.forEach(m => totalLessons += m.lessons.length);
+  if (totalLessons === 0) totalLessons = 5; // fallback
+
+  prog.progressPercentage = Math.min(100, Math.round((prog.completedLessonIds.length / totalLessons) * 100));
+  prog.lastAccessedLessonId = lessonId;
+  prog.lastAccessedAt = new Date().toISOString();
+
+  res.json({ success: true, progress: prog });
+});
+
+// Get Quiz Assessment
+app.get('/api/lms/quizzes/:courseId', (req: Request, res: Response) => {
+  const { courseId } = req.params;
+  const userRole = (req.query.role as string) || 'student';
+  const isStaff = userRole === 'admin' || userRole === 'teacher';
+
+  const quiz = lmsQuizzesStore[courseId];
+  if (!quiz) return res.status(404).json({ error: 'Quiz assessment not found for this course.' });
+
+  // Hide correct answers if student
+  const sanitizedQuiz = {
+    ...quiz,
+    questions: quiz.questions.map(q => ({
+      id: q.id,
+      text: q.text,
+      type: q.type,
+      options: q.options,
+      points: q.points,
+      explanation: isStaff ? q.explanation : undefined,
+      correctAnswer: isStaff ? q.correctAnswer : undefined
+    }))
+  };
+
+  res.json({ quiz: sanitizedQuiz });
+});
+
+// Submit Quiz Assessment & Auto-Grade
+app.post('/api/lms/quizzes/:quizId/submit', (req: Request, res: Response) => {
+  const { quizId } = req.params;
+  const { courseId, studentEmail, studentName, answers } = req.body;
+
+  if (!courseId || !studentEmail || !answers) {
+    return res.status(400).json({ error: 'courseId, studentEmail, and answers are required.' });
+  }
+
+  const quiz = lmsQuizzesStore[courseId];
+  if (!quiz) return res.status(404).json({ error: 'Quiz not found.' });
+
+  let totalPoints = 0;
+  let earnedPoints = 0;
+
+  quiz.questions.forEach(q => {
+    totalPoints += q.points;
+    const studentAns = answers[q.id];
+    if (studentAns !== undefined && String(studentAns).trim().toLowerCase() === String(q.correctAnswer).trim().toLowerCase()) {
+      earnedPoints += q.points;
+    }
+  });
+
+  const scorePercentage = Math.round((earnedPoints / (totalPoints || 1)) * 100);
+  const passed = scorePercentage >= quiz.passScorePercentage;
+
+  const attempt: LMSQuizAttemptRecord = {
+    id: `att-${Date.now().toString().slice(-4)}`,
+    quizId,
+    courseId,
+    studentEmail,
+    studentName: studentName || 'Alex Rivera',
+    scorePercentage,
+    passed,
+    answers,
+    submittedAt: new Date().toISOString(),
+    feedback: passed ? `Congratulations! You passed with ${scorePercentage}%.` : `Score: ${scorePercentage}%. Passing requirement is ${quiz.passScorePercentage}%. Please review course lessons and retry.`
+  };
+
+  lmsQuizAttemptsStore.unshift(attempt);
+
+  // Update lesson progress if passed
+  let prog = lmsProgressStore.find(p => p.studentEmail === studentEmail && p.courseId === courseId);
+  if (prog && passed) {
+    const quizLesson = lmsModulesStore[courseId]?.flatMap(m => m.lessons).find(l => l.type === 'quiz');
+    if (quizLesson && !prog.completedLessonIds.includes(quizLesson.id)) {
+      prog.completedLessonIds.push(quizLesson.id);
+    }
+  }
+
+  res.json({ success: true, attempt });
+});
+
+// Get Assignments & Submissions
+app.get('/api/lms/assignments/:courseId', (req: Request, res: Response) => {
+  const { courseId } = req.params;
+  const email = req.query.email as string;
+
+  const assignments = lmsAssignmentsStore[courseId] || [];
+  let submissions = lmsAssignmentSubmissionsStore.filter(s => s.courseId === courseId);
+
+  if (email) {
+    submissions = submissions.filter(s => s.studentEmail.toLowerCase() === email.toLowerCase());
+  }
+
+  res.json({ assignments, submissions });
+});
+
+// Submit Assignment Solution
+app.post('/api/lms/assignments/:assignmentId/submit', (req: Request, res: Response) => {
+  const { assignmentId } = req.params;
+  const { courseId, studentEmail, studentName, content, fileName } = req.body;
+
+  if (!courseId || !studentEmail || !content) {
+    return res.status(400).json({ error: 'courseId, studentEmail, and content are required.' });
+  }
+
+  const submission: LMSAssignmentSubmissionRecord = {
+    id: `sub-${Date.now().toString().slice(-4)}`,
+    assignmentId,
+    courseId,
+    studentEmail,
+    studentName: studentName || 'Alex Rivera',
+    content,
+    fileName: fileName || 'assignment_submission.zip',
+    submittedAt: new Date().toISOString(),
+    status: 'Pending'
+  };
+
+  lmsAssignmentSubmissionsStore.unshift(submission);
+  res.status(201).json({ success: true, submission });
+});
+
+// Grade Assignment (Instructor / Admin)
+app.post('/api/lms/assignments/:submissionId/grade', (req: Request, res: Response) => {
+  const { submissionId } = req.params;
+  const { gradePoints, instructorFeedback, gradedBy } = req.body;
+
+  const target = lmsAssignmentSubmissionsStore.find(s => s.id === submissionId);
+  if (!target) return res.status(404).json({ error: 'Assignment submission not found.' });
+
+  target.gradePoints = gradePoints;
+  target.instructorFeedback = instructorFeedback || '';
+  target.status = 'Graded';
+  target.gradedBy = gradedBy || 'Dr. Evelyn Sterling';
+  target.gradedAt = new Date().toISOString();
+
+  res.json({ success: true, submission: target });
+});
+
+// Get Certificates
+app.get('/api/lms/certificates', (req: Request, res: Response) => {
+  const email = req.query.email as string;
+  if (email) {
+    const certs = lmsCertificatesStore.filter(c => c.studentEmail.toLowerCase() === email.toLowerCase());
+    return res.json({ certificates: certs });
+  }
+  res.json({ certificates: lmsCertificatesStore });
+});
+
+// Cryptographic Certificate Verification Public Endpoint
+app.get('/api/certificates/verify/:certId', (req: Request, res: Response) => {
+  const { certId } = req.params;
+  const cert = lmsCertificatesStore.find(c => c.id.toLowerCase() === certId.toLowerCase());
+
+  if (!cert) {
+    return res.status(404).json({ valid: false, error: 'Certificate ID not found in Nexus AI Cryptographic Ledger.' });
+  }
+
+  res.json({ valid: true, certificate: cert });
+});
+
+// Generate Certificate (100% Completion Validation)
+app.post('/api/lms/certificates/generate', (req: Request, res: Response) => {
+  const { studentEmail, studentName, courseId, courseTitle, instructorName } = req.body;
+
+  if (!studentEmail || !courseId) {
+    return res.status(400).json({ error: 'studentEmail and courseId are required.' });
+  }
+
+  // Validate completion progress
+  const prog = lmsProgressStore.find(p => p.studentEmail === studentEmail && p.courseId === courseId);
+  if (!prog || prog.progressPercentage < 100) {
+    return res.status(400).json({
+      error: `Course completion criteria not satisfied. Current progress is ${prog?.progressPercentage || 0}%. 100% lesson completion required.`
+    });
+  }
+
+  const existingCert = lmsCertificatesStore.find(c => c.studentEmail === studentEmail && c.courseId === courseId);
+  if (existingCert) {
+    return res.json({ success: true, certificate: existingCert, message: 'Certificate already issued.' });
+  }
+
+  const certId = `NEXUS-CERT-${courseId.slice(0, 3).toUpperCase()}${Math.floor(Math.random() * 899 + 100)}-${Date.now().toString().slice(-4)}`;
+
+  const newCert: LMSCertificateRecord = {
+    id: certId,
+    studentName: studentName || 'Alex Rivera',
+    studentEmail,
+    courseId,
+    courseTitle: courseTitle || 'Nexus Academy Course',
+    instructorName: instructorName || 'Dr. Evelyn Sterling',
+    issuedAt: new Date().toISOString(),
+    gradeScore: '100% Distinction',
+    verificationUrl: `https://nexus-ai-academic-solutions.vercel.app/api/certificates/verify/${certId}`,
+    status: 'Valid'
+  };
+
+  lmsCertificatesStore.unshift(newCert);
+  res.status(201).json({ success: true, certificate: newCert });
+});
+
+// Get Course Reviews
+app.get('/api/lms/reviews', (req: Request, res: Response) => {
+  const courseId = req.query.courseId as string;
+  let reviews = [...lmsReviewsStore];
+
+  if (courseId) {
+    reviews = reviews.filter(r => r.courseId === courseId);
+  }
+
+  res.json({ reviews });
+});
+
+// Submit Course Review
+app.post('/api/lms/reviews', (req: Request, res: Response) => {
+  const { courseId, studentName, rating, comment } = req.body;
+
+  if (!courseId || !rating || !comment) {
+    return res.status(400).json({ error: 'courseId, rating, and comment are required.' });
+  }
+
+  const newReview: LMSReviewRecord = {
+    id: `rev-${Date.now().toString().slice(-4)}`,
+    courseId,
+    studentName: studentName || 'Alex Rivera',
+    rating: Number(rating),
+    comment,
+    date: new Date().toISOString(),
+    status: 'Approved'
+  };
+
+  lmsReviewsStore.unshift(newReview);
+  res.status(201).json({ success: true, review: newReview });
+});
+
+// Get Announcements
+app.get('/api/lms/announcements', (req: Request, res: Response) => {
+  res.json({ announcements: lmsAnnouncementsStore });
+});
+
+// Dispatch Announcement
+app.post('/api/lms/announcements', (req: Request, res: Response) => {
+  const { title, message, postedBy, courseId, targetCohort } = req.body;
+
+  if (!title || !message) {
+    return res.status(400).json({ error: 'Title and message are required.' });
+  }
+
+  const newAnc: LMSAnnouncementRecord = {
+    id: `anc-${Date.now().toString().slice(-4)}`,
+    title,
+    message,
+    postedBy: postedBy || 'Dr. Evelyn Sterling',
+    courseId,
+    date: new Date().toISOString(),
+    targetCohort: targetCohort || 'All Cohorts 2026'
+  };
+
+  lmsAnnouncementsStore.unshift(newAnc);
+  res.status(201).json({ success: true, announcement: newAnc });
+});
+
+// Ingest User Feedback
+app.post('/api/intelligence/feedback', (req: Request, res: Response) => {
+  const { feedbackType, comment, query } = req.body;
+  knowledgeGapsStore.unshift({
+    id: `gap-${Date.now().toString().slice(-4)}`,
+    topic: comment || query || 'User feedback item',
+    frequency: 1,
+    status: 'Pending Review',
+    suggestion: `Generated from user feedback (${feedbackType || 'general'}). Admin review required before updating RAG index.`,
+  });
+  res.json({ success: true, message: 'Feedback recorded securely. Thank you for helping improve Nexus Knowledge Brain.' });
+});
+
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
 

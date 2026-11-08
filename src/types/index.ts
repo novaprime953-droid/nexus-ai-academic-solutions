@@ -221,3 +221,129 @@ export interface CrawlPage {
   isExcluded?: boolean;
 }
 
+// ----------------------------------------------------
+// ACADEMY LEARNING MANAGEMENT SYSTEM (LMS)
+// ----------------------------------------------------
+export type CourseStatus = 'Draft' | 'Under Review' | 'Published' | 'Archived';
+export type LessonType = 'video' | 'article' | 'quiz' | 'assignment';
+export type QuestionType = 'multiple_choice' | 'true_false' | 'short_answer';
+
+export interface Lesson {
+  id: string;
+  title: string;
+  duration: string;
+  type: LessonType;
+  videoUrl?: string;
+  contentHtml?: string;
+  downloadableResources?: { name: string; url: string; size: string }[];
+  learningObjectives?: string[];
+  isFreePreview?: boolean;
+}
+
+export interface CourseModule {
+  id: string;
+  week: string;
+  title: string;
+  lessons: Lesson[];
+}
+
+export interface QuizQuestion {
+  id: string;
+  text: string;
+  type: QuestionType;
+  options?: string[];
+  correctAnswer: string | number;
+  explanation?: string;
+  points: number;
+}
+
+export interface Quiz {
+  id: string;
+  courseId: string;
+  title: string;
+  timeLimitMinutes: number;
+  passScorePercentage: number;
+  questions: QuizQuestion[];
+}
+
+export interface QuizAttempt {
+  id: string;
+  quizId: string;
+  courseId: string;
+  studentEmail: string;
+  studentName: string;
+  scorePercentage: number;
+  passed: boolean;
+  answers: Record<string, string | number>;
+  submittedAt: string;
+  feedback?: string;
+}
+
+export interface Assignment {
+  id: string;
+  courseId: string;
+  title: string;
+  description: string;
+  deadline: string;
+  maxPoints: number;
+}
+
+export interface AssignmentSubmission {
+  id: string;
+  assignmentId: string;
+  courseId: string;
+  studentEmail: string;
+  studentName: string;
+  content: string;
+  fileName?: string;
+  submittedAt: string;
+  gradePoints?: number;
+  status: 'Pending' | 'Graded' | 'Resubmission Requested';
+  instructorFeedback?: string;
+  gradedBy?: string;
+  gradedAt?: string;
+}
+
+export interface IssuedCertificate {
+  id: string;
+  studentName: string;
+  studentEmail: string;
+  courseId: string;
+  courseTitle: string;
+  instructorName: string;
+  issuedAt: string;
+  gradeScore: string;
+  verificationUrl: string;
+  status: 'Valid' | 'Revoked';
+}
+
+export interface CourseReview {
+  id: string;
+  courseId: string;
+  studentName: string;
+  rating: number;
+  comment: string;
+  date: string;
+  status: 'Approved' | 'Pending Moderation' | 'Rejected';
+}
+
+export interface AcademyAnnouncement {
+  id: string;
+  courseId?: string;
+  title: string;
+  message: string;
+  postedBy: string;
+  date: string;
+  targetCohort: string;
+}
+
+export interface LessonProgress {
+  studentEmail: string;
+  courseId: string;
+  completedLessonIds: string[];
+  lastAccessedLessonId?: string;
+  progressPercentage: number;
+  lastAccessedAt: string;
+}
+
+
