@@ -161,8 +161,16 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
             </p>
           </div>
 
-          <ScrollReveal staggerChildren={0.12} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <ScrollReveal staggerChildren={0.12} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
+              {
+                name: 'Musa Aswad',
+                role: 'CEO & Founder, Nexus AI Academic & Solutions',
+                bio: 'Executive technology leader directing global research, academic computer education, and enterprise AI software solutions.',
+                initials: 'MA',
+                accent: 'from-amber-400 via-yellow-500 to-red-500',
+                contacts: '03076159777 · 03170338486'
+              },
               {
                 name: 'Dr. Evelyn Sterling',
                 role: 'Dean of Academic Research & Principal AI Architect',
@@ -186,15 +194,23 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
               },
             ].map((leader, i) => (
               <StaggerItem key={i}>
-                <CardTilt className="glass-panel p-6 rounded-2xl border border-[#4263FF]/25 space-y-4 text-center h-full">
-                  <div className={`w-20 h-20 rounded-2xl bg-gradient-to-tr ${leader.accent} flex items-center justify-center mx-auto text-xl font-bold text-white shadow-lg`}>
-                    {leader.initials}
+                <CardTilt className="glass-panel p-6 rounded-2xl border border-[#4263FF]/25 space-y-4 text-center h-full flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className={`w-20 h-20 rounded-2xl bg-gradient-to-tr ${leader.accent} flex items-center justify-center mx-auto text-xl font-extrabold text-white shadow-lg`}>
+                      {leader.initials}
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-white">{leader.name}</h3>
+                      <p className="text-xs text-cyan-400 font-medium mt-0.5">{leader.role}</p>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">{leader.bio}</p>
                   </div>
-                  <div>
-                    <h3 className="text-base font-bold text-white">{leader.name}</h3>
-                    <p className="text-xs text-cyan-400 font-medium mt-0.5">{leader.role}</p>
-                  </div>
-                  <p className="text-xs text-slate-300 leading-relaxed">{leader.bio}</p>
+
+                  {leader.contacts && (
+                    <div className="pt-3 border-t border-white/10 text-[11px] font-mono text-amber-400 font-semibold">
+                      Direct: <a href="tel:+923076159777" className="hover:underline">03076159777</a>
+                    </div>
+                  )}
                 </CardTilt>
               </StaggerItem>
             ))}

@@ -3241,6 +3241,13 @@ const systemSettingsStore = {
     dateFormat: 'YYYY-MM-DD',
     maintenanceMode: false
   },
+  companyLeadership: {
+    companyName: 'NEXUS AI ACADEMIC & SOLUTIONS',
+    ceoName: 'Musa Aswad',
+    primaryContact: '03076159777',
+    secondaryContact: '03170338486',
+    officialEmail: 'onlinewow280@gmail.com'
+  },
   academy: {
     autoApproveCourses: false,
     passScoreDefault: 75,

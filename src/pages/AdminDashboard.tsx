@@ -67,7 +67,8 @@ import {
   Building,
   LogOut,
   Trash2,
-  Layers
+  Layers,
+  Crown
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -836,6 +837,57 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, onLo
                 <CheckCircle2 className="w-4 h-4 shrink-0" /> {settingsSavedMsg}
               </div>
             )}
+
+            {/* CEO & Company Leadership Settings */}
+            <CardTilt className="glass-panel p-6 sm:p-8 rounded-3xl border border-amber-400/30 space-y-4 bg-[#151F40]/90">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
+                <Crown className="w-4 h-4 text-amber-400" /> CEO &amp; Leadership Profile Configuration
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-slate-400 mb-1 block">CEO Name</label>
+                  <input
+                    type="text"
+                    value={systemSettings.companyLeadership?.ceoName || 'Musa Aswad'}
+                    onChange={(e) => setSystemSettings({ ...systemSettings, companyLeadership: { ...systemSettings.companyLeadership, ceoName: e.target.value } })}
+                    className="w-full bg-[#10172F] border border-white/10 rounded-xl px-3 py-2 text-white font-bold text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-400 mb-1 block">Official Email</label>
+                  <input
+                    type="email"
+                    value={systemSettings.companyLeadership?.officialEmail || 'onlinewow280@gmail.com'}
+                    onChange={(e) => setSystemSettings({ ...systemSettings, companyLeadership: { ...systemSettings.companyLeadership, officialEmail: e.target.value } })}
+                    className="w-full bg-[#10172F] border border-white/10 rounded-xl px-3 py-2 text-cyan-400 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-400 mb-1 block">Primary Phone / WhatsApp</label>
+                  <input
+                    type="text"
+                    value={systemSettings.companyLeadership?.primaryContact || '03076159777'}
+                    onChange={(e) => setSystemSettings({ ...systemSettings, companyLeadership: { ...systemSettings.companyLeadership, primaryContact: e.target.value } })}
+                    className="w-full bg-[#10172F] border border-white/10 rounded-xl px-3 py-2 text-emerald-400 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-400 mb-1 block">Secondary Phone / WhatsApp</label>
+                  <input
+                    type="text"
+                    value={systemSettings.companyLeadership?.secondaryContact || '03170338486'}
+                    onChange={(e) => setSystemSettings({ ...systemSettings, companyLeadership: { ...systemSettings.companyLeadership, secondaryContact: e.target.value } })}
+                    className="w-full bg-[#10172F] border border-white/10 rounded-xl px-3 py-2 text-emerald-400 font-mono"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={() => handleSaveSettingsCategory('companyLeadership', systemSettings.companyLeadership)}
+                className="px-5 py-2 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 text-slate-900 font-bold rounded-xl"
+              >
+                Save Leadership Settings
+              </button>
+            </CardTilt>
 
             {/* General Settings */}
             <CardTilt className="glass-panel p-6 sm:p-8 rounded-3xl border border-white/10 space-y-4 bg-[#151F40]/90">

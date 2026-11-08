@@ -36,9 +36,11 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             <p className="text-slate-400 text-sm leading-relaxed max-w-sm">
               Empowering individuals and enterprise organizations through world-class AI education, practical intelligent tools, and high-performance digital software solutions.
             </p>
-            <div className="text-xs text-slate-500 space-y-1 pt-2">
+            <div className="text-xs text-slate-400 space-y-1.5 pt-2 font-sans">
+              <p className="text-white font-semibold">CEO &amp; Founder: Musa Aswad</p>
               <p>Physical Innovation Campus: Tech Corridor Lab 4, Cyber City</p>
-              <p>Direct Inquiries: solutions@nexusai.academic.io</p>
+              <p>Official Email: <a href="mailto:onlinewow280@gmail.com" className="text-cyan-400 hover:underline">onlinewow280@gmail.com</a></p>
+              <p>Contacts: <a href="tel:+923076159777" className="text-emerald-400 hover:underline">03076159777</a> · <a href="tel:+923170338486" className="text-emerald-400 hover:underline">03170338486</a></p>
             </div>
           </div>
 

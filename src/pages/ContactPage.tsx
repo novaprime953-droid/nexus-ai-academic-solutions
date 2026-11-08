@@ -92,12 +92,15 @@ export const ContactPage: React.FC = () => {
               
               <div className="space-y-4 text-xs">
                 <div className="flex items-start gap-3 text-slate-300">
-                  <div className="w-7 h-7 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center shrink-0">
-                    <MapPin className="w-4 h-4" />
+                  <div className="w-7 h-7 rounded-lg bg-yellow-500/10 text-yellow-400 flex items-center justify-center shrink-0">
+                    <Phone className="w-4 h-4" />
                   </div>
                   <div>
-                    <strong className="text-white block font-semibold mb-0.5">Physical Cyber Campus:</strong>
-                    Nexus Tower 4, Tech Innovation Corridor, Cyber City Labs
+                    <strong className="text-white block font-semibold mb-0.5">CEO &amp; Leadership Contact (Musa Aswad):</strong>
+                    <div className="space-y-0.5">
+                      <p>Primary: <a href="tel:+923076159777" className="text-emerald-400 hover:underline font-mono">03076159777</a></p>
+                      <p>Secondary: <a href="tel:+923170338486" className="text-emerald-400 hover:underline font-mono">03170338486</a></p>
+                    </div>
                   </div>
                 </div>
 
@@ -106,18 +109,18 @@ export const ContactPage: React.FC = () => {
                     <Mail className="w-4 h-4" />
                   </div>
                   <div>
-                    <strong className="text-white block font-semibold mb-0.5">Academic Inquiries:</strong>
-                    academy@nexusai.academic.io
+                    <strong className="text-white block font-semibold mb-0.5">Official Company Email:</strong>
+                    <a href="mailto:onlinewow280@gmail.com" className="text-cyan-400 hover:underline font-mono">onlinewow280@gmail.com</a>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3 text-slate-300">
-                  <div className="w-7 h-7 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center shrink-0">
-                    <Mail className="w-4 h-4" />
+                  <div className="w-7 h-7 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center shrink-0">
+                    <MapPin className="w-4 h-4" />
                   </div>
                   <div>
-                    <strong className="text-white block font-semibold mb-0.5">Enterprise Solutions:</strong>
-                    solutions@nexusai.academic.io
+                    <strong className="text-white block font-semibold mb-0.5">Physical Cyber Campus:</strong>
+                    Nexus Tower 4, Tech Innovation Corridor, Cyber City Labs
                   </div>
                 </div>
 
@@ -132,16 +135,25 @@ export const ContactPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Direct Quick Chat WhatsApp / Telegram link button */}
-              <div className="pt-2 border-t border-white/10">
+              {/* Direct Quick Chat WhatsApp link button */}
+              <div className="pt-2 border-t border-white/10 flex flex-col sm:flex-row gap-2">
                 <a
-                  href="https://wa.me/15550192834?text=Hello%20Nexus%20AI%20Team%2C%20I%20would%20like%20to%20inquire%20about%20your%20services"
+                  href="https://wa.me/923076159777?text=Hello%20CEO%20Musa%20Aswad%2C%20I%20would%20like%20to%20inquire%20about%20Nexus%20AI%20Academic%20%26%20Solutions"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full py-2.5 px-4 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-semibold text-xs flex items-center justify-center gap-2 transition-colors"
+                  className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-semibold text-xs flex items-center justify-center gap-2 transition-colors"
                 >
                   <MessageSquare className="w-4 h-4" />
-                  <span>Direct WhatsApp Priority Channel</span>
+                  <span>WhatsApp Primary (03076159777)</span>
+                </a>
+                <a
+                  href="https://wa.me/923170338486?text=Hello%20CEO%20Musa%20Aswad%2C%20I%20would%20like%20to%20inquire%20about%20Nexus%20AI%20Academic%20%26%20Solutions"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-semibold text-xs flex items-center justify-center gap-2 transition-colors"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  <span>WhatsApp Secondary (03170338486)</span>
                 </a>
               </div>
             </CardTilt>

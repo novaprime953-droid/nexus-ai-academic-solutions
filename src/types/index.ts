@@ -559,6 +559,13 @@ export interface SystemSettings {
     sessionTimeoutMinutes: number;
     auditLogEnabled: boolean;
   };
+  companyLeadership?: {
+    companyName: string;
+    ceoName: string;
+    primaryContact: string;
+    secondaryContact: string;
+    officialEmail: string;
+  };
 }
 
 export interface SystemAuditLog {
